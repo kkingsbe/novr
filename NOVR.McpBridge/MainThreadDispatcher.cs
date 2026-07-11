@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Reflection;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -26,7 +25,11 @@ public sealed class MainThreadDispatcher : MonoBehaviour
         }
     }
 
-    public Task<T> RunAsync<T>(Func<T> func)
+    public const int DefaultTimeoutMs = 5000;
+
+    public Task<T> RunAsync<T>(Func<T> func) => RunAsync(func, DefaultTimeoutMs);
+
+    public async Task<T> RunAsync<T>(Func<T> func, int timeoutMs)
     {
         var tcs = new TaskCompletionSource<T>();
         _queue.Enqueue(() =>
@@ -34,19 +37,19 @@ public sealed class MainThreadDispatcher : MonoBehaviour
             try { tcs.SetResult(func()); }
             catch (Exception ex) { tcs.SetException(ex); }
         });
-        return tcs.Task;
+
+        var winner = await Task.WhenAny(tcs.Task, Task.Delay(timeoutMs));
+        if (winner != tcs.Task)
+            throw new TimeoutException(
+                $"Main thread did not pump the queued action within {timeoutMs}ms " +
+                "(game paused, unfocused, or runInBackground off?)");
+        return await tcs.Task;
     }
 
-    public Task RunAsync(Action action)
-    {
-        var tcs = new TaskCompletionSource<object?>();
-        _queue.Enqueue(() =>
-        {
-            try { action(); tcs.SetResult(null); }
-            catch (Exception ex) { tcs.SetException(ex); }
-        });
-        return tcs.Task;
-    }
+    public Task RunAsync(Action action) => RunAsync<object?>(() => { action(); return null; }, DefaultTimeoutMs);
+
+    public Task RunAsync(Action action, int timeoutMs) =>
+        RunAsync<object?>(() => { action(); return null; }, timeoutMs);
 
     private void Update()
     {
