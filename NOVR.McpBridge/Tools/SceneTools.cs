@@ -60,20 +60,35 @@ public static class SceneTools
         }
     }
 
-    [McpTool("inspect_gameobject", "Returns detailed component data for a GameObject by name path.")]
+    [McpTool("inspect_gameobject", "Returns detailed component data for a GameObject by name (substring) or full hierarchy path (slash-separated). When name is ambiguous, returns all matches.")]
     public static string InspectGameObject(
-        [McpParam(Name = "name", Description = "GameObject name (substring match)")]
+        [McpParam(Name = "name", Description = "GameObject name (substring) or hierarchy path (e.g. 'UI/Canvas/Panel')")]
         string name,
-        [McpParam(Name = "includeComponents", Description = "Include component field values", Required = false)]
+        [McpParam(Name = "includeComponents", Description = "Include component field + property values", Required = false)]
         bool includeComponents = false)
     {
-        var go = FindGameObjectByName(name);
-
-        if (go == null)
+        var matches = FindGameObjectsByName(name);
+        if (matches.Count == 0)
             return $"GameObject '{name}' not found.";
 
+        if (matches.Count > 1 && !name.Contains('/'))
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Ambiguous name '{name}'; {matches.Count} matches:");
+            foreach (var m in matches)
+                sb.AppendLine($"  - {m.transform.GetFullPath()}");
+            sb.AppendLine();
+            sb.AppendLine("Re-call with the full hierarchy path to disambiguate.");
+            return sb.ToString();
+        }
+
+        return InspectSingle(matches[0], includeComponents);
+    }
+
+    private static string InspectSingle(GameObject go, bool includeComponents)
+    {
         var sb = new StringBuilder();
-        sb.AppendLine($"GameObject: {go.name}");
+        sb.AppendLine($"GameObject: {go.transform.GetFullPath()}");
         sb.AppendLine($"  Tag: {go.tag}");
         sb.AppendLine($"  Layer: {go.layer} ({LayerMask.LayerToName(go.layer)})");
         sb.AppendLine($"  Active: {go.activeInHierarchy}");
@@ -90,26 +105,60 @@ public static class SceneTools
             if (component == null) continue;
             sb.AppendLine($"  [{component.GetType().Name}]");
             AppendCuratedProperties(sb, component);
-            var fields = component.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
-            foreach (var field in fields)
-            {
-                try
-                {
-                    var value = field.GetValue(component);
-                    sb.AppendLine($"    {field.Name} = {value ?? "null"}");
-                }
-                catch { sb.AppendLine($"    {field.Name} = <error>"); }
-            }
+            AppendPublicProperties(sb, component);
+            AppendFields(sb, component, BindingFlags.Public | BindingFlags.Instance);
+            AppendFields(sb, component, BindingFlags.NonPublic | BindingFlags.Instance);
         }
 
         return sb.ToString();
     }
 
-    private static GameObject? FindGameObjectByName(string name)
+    private static List<GameObject> FindGameObjectsByName(string nameOrPath)
     {
-        return GameObject.Find(name) ?? Resources.FindObjectsOfTypeAll(typeof(GameObject))
-            .Cast<GameObject>()
-            .FirstOrDefault(o => o.name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+        var results = new List<GameObject>();
+
+        if (nameOrPath.Contains('/'))
+        {
+            for (var i = 0; i < SceneManager.sceneCount; i++)
+            {
+                var scene = SceneManager.GetSceneAt(i);
+                if (!scene.isLoaded) continue;
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    var found = FindByPath(root.transform, nameOrPath);
+                    if (found != null) results.Add(found.gameObject);
+                }
+            }
+            return results;
+        }
+
+        foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>())
+        {
+            if (!go.scene.isLoaded) continue;
+            if (go.name.IndexOf(nameOrPath, StringComparison.OrdinalIgnoreCase) >= 0)
+                results.Add(go);
+        }
+        return results;
+    }
+
+    private static Transform? FindByPath(Transform root, string path)
+    {
+        var parts = path.Split('/');
+        var current = root;
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var wanted = parts[i];
+            if (i == 0 && wanted == current.name) { continue; }
+            Transform? next = null;
+            for (var c = 0; c < current.childCount; c++)
+            {
+                var child = current.GetChild(c);
+                if (child.name == wanted) { next = child; break; }
+            }
+            if (next == null) return null;
+            current = next;
+        }
+        return current;
     }
 
     private static readonly Dictionary<Type, PropertyInfo[]> CuratedProperties = BuildCuratedProperties();
@@ -198,6 +247,9 @@ public static class SceneTools
         }
     }
 
+    private static void AppendPublicProperties(StringBuilder sb, object component) { }
+    private static void AppendFields(StringBuilder sb, object component, BindingFlags flags) { }
+
     [McpTool("find_objects_by_type", "Finds all GameObject paths for a given Unity component type.")]
     public static string FindObjectsByType(
         [McpParam(Name = "typeName", Description = "Type name (e.g. Camera, MeshRenderer, Rigidbody)")]
@@ -242,7 +294,8 @@ public static class SceneTools
         [McpParam(Name = "name", Description = "GameObject name (substring match)")]
         string name)
     {
-        var go = FindGameObjectByName(name);
+        var matches = FindGameObjectsByName(name);
+        var go = matches.Count > 0 ? matches[0] : null;
         if (go == null) return $"GameObject '{name}' not found.";
 
         var sb = new StringBuilder();
