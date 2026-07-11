@@ -247,8 +247,43 @@ public static class SceneTools
         }
     }
 
-    private static void AppendPublicProperties(StringBuilder sb, object component) { }
-    private static void AppendFields(StringBuilder sb, object component, BindingFlags flags) { }
+    private static void AppendPublicProperties(StringBuilder sb, object component)
+    {
+        var type = component.GetType();
+        foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (prop.GetIndexParameters().Length > 0) continue;
+            if (prop.DeclaringType == typeof(UnityEngine.Object)) continue;
+            if (prop.GetMethod == null || !prop.CanRead) continue;
+            try
+            {
+                var value = prop.GetValue(component);
+                sb.AppendLine($"    .{prop.Name} = {FormatPropertyValue(value)}");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    .{prop.Name} = <error: {ex.GetType().Name}>");
+            }
+        }
+    }
+
+    private static void AppendFields(StringBuilder sb, object component, BindingFlags flags)
+    {
+        var type = component.GetType();
+        foreach (var field in type.GetFields(flags))
+        {
+            if (field.DeclaringType == typeof(UnityEngine.Object)) continue;
+            try
+            {
+                var value = field.GetValue(component);
+                sb.AppendLine($"    {(field.IsPublic ? "" : "[private] ")}{field.Name} = {FormatPropertyValue(value)}");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    {(field.IsPublic ? "" : "[private] ")}{field.Name} = <error: {ex.GetType().Name}>");
+            }
+        }
+    }
 
     [McpTool("find_objects_by_type", "Finds all GameObject paths for a given Unity component type.")]
     public static string FindObjectsByType(
