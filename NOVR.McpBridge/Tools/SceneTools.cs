@@ -10,10 +10,12 @@ namespace NOVR.McpBridge.Tools;
 
 public static class SceneTools
 {
-    [McpTool("get_scene_hierarchy", "Returns the full GameObject tree of all loaded scenes.")]
+    [McpTool("get_scene_hierarchy", "Returns the GameObject tree of all loaded scenes. Defaults to depth=3 and no name filter to avoid blowing agent context.")]
     public static string GetSceneHierarchy(
-        [McpParam(Name = "maxDepth", Description = "Maximum hierarchy depth to traverse (default: 0 = unlimited)")]
-        int maxDepth = 0)
+        [McpParam(Name = "maxDepth", Description = "Maximum hierarchy depth to traverse (default: 3, 0 = unlimited)", Required = false)]
+        int maxDepth = 3,
+        [McpParam(Name = "nameFilter", Description = "Substring filter; only GameObjects whose name contains this (case-insensitive) are included", Required = false)]
+        string nameFilter = "")
     {
         var sb = new StringBuilder();
 
@@ -25,28 +27,36 @@ public static class SceneTools
             sb.AppendLine($"Scene: {scene.name} (index={scene.buildIndex}, path={scene.path})");
             foreach (var root in scene.GetRootGameObjects())
             {
-                AppendGameObject(sb, root, 1, maxDepth);
+                AppendGameObject(sb, root, 1, maxDepth, nameFilter);
             }
         }
 
         return sb.ToString();
     }
 
-    private static void AppendGameObject(StringBuilder sb, GameObject go, int depth, int maxDepth)
+    private static void AppendGameObject(StringBuilder sb, GameObject go, int depth, int maxDepth, string nameFilter)
     {
-        if (maxDepth > 0 && depth > maxDepth) return;
+        var includeByDepth = maxDepth <= 0 || depth <= maxDepth;
+        var matchesFilter = string.IsNullOrEmpty(nameFilter)
+            || go.name.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0;
 
-        var indent = new string(' ', depth * 2);
-        var components = string.Join(", ", go.GetComponents<Component>()
-            .Where(c => c != null)
-            .Select(c => c.GetType().Name));
-
-        var active = go.activeInHierarchy ? "" : " (inactive)";
-        sb.AppendLine($"{indent}- {go.name}{active} [{components}]");
-
-        for (var i = 0; i < go.transform.childCount; i++)
+        if (includeByDepth)
         {
-            AppendGameObject(sb, go.transform.GetChild(i).gameObject, depth + 1, maxDepth);
+            var indent = new string(' ', depth * 2);
+            var components = string.Join(", ", go.GetComponents<Component>()
+                .Where(c => c != null)
+                .Select(c => c.GetType().Name));
+
+            var active = go.activeInHierarchy ? "" : " (inactive)";
+            sb.AppendLine($"{indent}- {go.name}{active} [{components}]");
+        }
+
+        if (!includeByDepth || matchesFilter || depth < maxDepth)
+        {
+            for (var i = 0; i < go.transform.childCount; i++)
+            {
+                AppendGameObject(sb, go.transform.GetChild(i).gameObject, depth + 1, maxDepth, nameFilter);
+            }
         }
     }
 
