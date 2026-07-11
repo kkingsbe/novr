@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Valve.Newtonsoft.Json.Linq;
 
 namespace NOVR.McpBridge;
 
@@ -78,7 +79,7 @@ public sealed class McpHttpServer : IDisposable
         {
             try
             {
-                await JsonResponse(ctx, 500, $"{{\"error\":\"{ToolRegistry.EscapeJson(ex.Message)}\"}}");
+                await JsonResponse(ctx, 500, new JObject { ["error"] = ex.Message }.ToString(Valve.Newtonsoft.Json.Formatting.None));
             }
             catch { }
         }
@@ -86,23 +87,18 @@ public sealed class McpHttpServer : IDisposable
 
     private async Task HandleGetTools(HttpListenerContext ctx)
     {
-        var sb = new StringBuilder("[");
-        var first = true;
+        var tools = new JArray();
         foreach (var (name, descriptor) in ToolRegistry.Tools)
         {
-            if (!first) sb.Append(',');
-            first = false;
-            sb.Append("{\"name\":\"");
-            sb.Append(ToolRegistry.EscapeJson(name));
-            sb.Append("\",\"description\":\"");
-            sb.Append(ToolRegistry.EscapeJson(descriptor.Description));
-            sb.Append("\",\"inputSchema\":");
-            sb.Append(descriptor.InputSchemaJson);
-            sb.Append('}');
+            tools.Add(new JObject
+            {
+                ["name"] = name,
+                ["description"] = descriptor.Description,
+                ["inputSchema"] = JToken.Parse(descriptor.InputSchemaJson),
+            });
         }
-        sb.Append(']');
 
-        await JsonResponse(ctx, 200, sb.ToString());
+        await JsonResponse(ctx, 200, tools.ToString(Valve.Newtonsoft.Json.Formatting.None));
     }
 
     private async Task HandleInvoke(HttpListenerContext ctx)
@@ -117,7 +113,7 @@ public sealed class McpHttpServer : IDisposable
 
         if (!ToolRegistry.Tools.TryGetValue(toolName, out var descriptor))
         {
-            await JsonResponse(ctx, 404, $"{{\"error\":\"Unknown tool: {ToolRegistry.EscapeJson(toolName)}\"}}");
+            await JsonResponse(ctx, 404, new JObject { ["error"] = $"Unknown tool: {toolName}" }.ToString(Valve.Newtonsoft.Json.Formatting.None));
             return;
         }
 
@@ -127,115 +123,53 @@ public sealed class McpHttpServer : IDisposable
             catch (Exception ex) { return $"<error>{ex.Message}"; }
         });
 
-        var resultStr = ToolRegistry.ToJsonString(result);
-        await JsonResponse(ctx, 200, $"{{\"result\":{resultStr}}}");
+        var envelope = BuildResultEnvelope(result);
+        var json = envelope.ToString(Valve.Newtonsoft.Json.Formatting.None);
+        await JsonResponse(ctx, 200, $"{{\"result\":{json}}}");
     }
 
     private static (string name, Dictionary<string, object?> args) ParseInvokeRequest(string json)
     {
-        var trimmed = json.Trim();
-        var toolName = "";
+        var token = JToken.Parse(json);
+        var name = token.Value<string>("tool") ?? "";
+        var argsToken = token["args"] as JObject;
         var args = new Dictionary<string, object?>();
-
-        if (trimmed.StartsWith("{") && trimmed.EndsWith("}"))
+        if (argsToken != null)
         {
-            var content = trimmed.Substring(1, trimmed.Length - 2);
-            foreach (var pair in SplitJsonPairs(content))
+            foreach (var prop in argsToken.Properties())
             {
-                if (!pair.Contains(":")) continue;
-                var colonIdx = pair.IndexOf(':');
-                var key = UnescapeJsonString(pair.Substring(0, colonIdx).Trim());
-                var rawVal = pair.Substring(colonIdx + 1).Trim();
-                var val = ParseJsonValue(rawVal);
-
-                if (key == "tool") toolName = val?.ToString() ?? "";
-                else if (key == "args" && val is Dictionary<string, object?> dict) args = dict;
+                args[prop.Name] = prop.Value.Type == JTokenType.Null
+                    ? null
+                    : prop.Value.ToObject<object>();
             }
         }
-
-        return (toolName, args);
+        return (name, args);
     }
 
-    private static List<string> SplitJsonPairs(string content)
+    private static JToken BuildResultEnvelope(object? result)
     {
-        var pairs = new List<string>();
-        var depth = 0;
-        var start = 0;
-        var inString = false;
-
-        for (var i = 0; i < content.Length; i++)
+        if (result is McpToolResult mcp)
         {
-            var c = content[i];
-            if (c == '"' && (i == 0 || content[i - 1] != '\\')) inString = !inString;
-            if (inString) continue;
-            if (c == '{' || c == '[') depth++;
-            if (c == '}' || c == ']') depth--;
-            if (c == ',' && depth == 0)
-            {
-                pairs.Add(content.Substring(start, i - start));
-                start = i + 1;
-            }
-        }
-        if (start < content.Length) pairs.Add(content.Substring(start));
-
-        return pairs;
-    }
-
-    private static object? ParseJsonValue(string raw)
-    {
-        raw = raw.Trim();
-        if (raw == "null") return null;
-        if (raw == "true") return true;
-        if (raw == "false") return false;
-        if (raw.StartsWith("\"") && raw.EndsWith("\""))
-            return UnescapeJsonString(raw.Substring(1, raw.Length - 2));
-        if (raw.StartsWith("{"))
-        {
-            var dict = new Dictionary<string, object?>();
-            var inner = raw.Substring(1, raw.Length - 2);
-            foreach (var pair in SplitJsonPairs(inner))
-            {
-                var colonIdx = pair.IndexOf(':');
-                if (colonIdx < 0) continue;
-                var key = UnescapeJsonString(pair.Substring(0, colonIdx).Trim());
-                var val = ParseJsonValue(pair.Substring(colonIdx + 1).Trim());
-                if (key != null) dict[key] = val;
-            }
-            return dict;
-        }
-        if (double.TryParse(raw, System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture, out var num))
-            return num;
-        return raw;
-    }
-
-    private static string UnescapeJsonString(string s)
-    {
-        if (string.IsNullOrEmpty(s)) return s;
-        if (s.Length >= 2 && s.StartsWith("\"") && s.EndsWith("\""))
-            s = s.Substring(1, s.Length - 2);
-
-        var sb = new StringBuilder(s.Length);
-        for (var i = 0; i < s.Length; i++)
-        {
-            if (s[i] == '\\' && i + 1 < s.Length)
-            {
-                switch (s[i + 1])
+            var blocks = new JArray();
+            if (mcp.Text != null)
+                blocks.Add(new JObject { ["type"] = "text", ["text"] = mcp.Text });
+            if (mcp.ImageBase64 != null)
+                blocks.Add(new JObject
                 {
-                    case '"': sb.Append('"'); i++; break;
-                    case '\\': sb.Append('\\'); i++; break;
-                    case 'n': sb.Append('\n'); i++; break;
-                    case 'r': sb.Append('\r'); i++; break;
-                    case 't': sb.Append('\t'); i++; break;
-                    default: sb.Append(s[i]); break;
-                }
-            }
-            else
-            {
-                sb.Append(s[i]);
-            }
+                    ["type"] = "image",
+                    ["mimeType"] = mcp.ImageMimeType,
+                    ["data"] = mcp.ImageBase64,
+                });
+            return blocks;
         }
-        return sb.ToString();
+
+        if (result == null) return JValue.CreateNull();
+        if (result is string s) return new JValue(s);
+        if (result is bool b) return new JValue(b);
+        if (result is int || result is long || result is short || result is byte ||
+            result is float || result is double || result is decimal)
+            return new JValue(Convert.ToDouble(result, System.Globalization.CultureInfo.InvariantCulture));
+        return JToken.FromObject(result);
     }
 
     private static Task JsonResponse(HttpListenerContext ctx, int status, string json)
