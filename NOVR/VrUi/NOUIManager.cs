@@ -33,7 +33,7 @@ public class NOUIManager : NOVRBehaviour
 
         var cam = CockpitHudCamera;
         go.transform.position = cam.transform.position;
-        go.transform.localRotation = cam.transform.localRotation;
+        go.transform.rotation = cam.transform.rotation;
         return go;
     }
 
@@ -95,7 +95,7 @@ public class NOUIManager : NOVRBehaviour
         var smoothedForwardReference = CockpitHudReference;
         var cam = CockpitHudCamera;
         smoothedForwardReference.transform.position = cam.transform.position;
-        smoothedForwardReference.transform.localRotation = Quaternion.Lerp(smoothedForwardReference.transform.localRotation, cam.transform.localRotation, Mathf.Clamp(Time.deltaTime * SmoothingFactor, 0, 1));
+        smoothedForwardReference.transform.rotation = Quaternion.Lerp(smoothedForwardReference.transform.rotation, cam.transform.rotation, Mathf.Clamp(Time.deltaTime * SmoothingFactor, 0, 1));
     }
 
     

@@ -75,7 +75,7 @@ public class VrUiCursor: NOVRBehaviour
     private Ray _lastProbeRay;
     private Vector3 _lastCursorTargetPos;
     private string _lastCanvasName = "";
-    private readonly System.Collections.Generic.Queue<System.Action> _deferredActions = new();
+    private readonly System.Collections.Generic.List<System.Action> _deferredActions = new();
 
     // Controller input mode
     private bool _controllerModeActive;
@@ -185,6 +185,12 @@ public class VrUiCursor: NOVRBehaviour
 
     private void Update()
     {
+        // Always allow input-mode toggle polling — VR runtimes often leave the
+        // desktop window unfocused while the user is in-headset, so checking
+        // Application.isFocused here would prevent the trigger from ever
+        // switching the cursor out of Mouse mode.
+        CheckModeToggleRequests();
+
         if (!Application.isFocused)
         {
             if (_cursor != null && _cursor.activeSelf)
@@ -205,7 +211,6 @@ public class VrUiCursor: NOVRBehaviour
         UpdateStandardUIModuleState();
         if (_texture == null) return;
 
-        CheckModeToggleRequests();
 
         // Determine input mode
         string modeSetting = ModConfiguration.Instance.CursorInputMode.Value;
@@ -266,7 +271,7 @@ public class VrUiCursor: NOVRBehaviour
 
             if (triggerDownThisFrame)
             {
-                _deferredActions.Enqueue(ForwardMapClickIfNeeded);
+                _deferredActions.Add(ForwardMapClickIfNeeded);
             }
 
             _triggerWasPressed = _triggerIsPressed;
@@ -295,7 +300,7 @@ public class VrUiCursor: NOVRBehaviour
 
             if (realMouse.leftButton.wasPressedThisFrame)
             {
-                _deferredActions.Enqueue(ForwardMapClickIfNeeded);
+                _deferredActions.Add(ForwardMapClickIfNeeded);
             }
         }
     }
@@ -321,12 +326,32 @@ public class VrUiCursor: NOVRBehaviour
     private void FirePointerEvents(Vector2 screenPoint, bool isLeftDown)
     {
         var es = EventSystem.current;
-        if (es == null) return;
+        if (es == null)
+        {
+            ResetHoverState();
+            _wasLeftDown = isLeftDown;
+            return;
+        }
 
-        if (_activeCanvas == null || !_hasActiveCanvas) return;
+        if (_activeCanvas == null || !_hasActiveCanvas)
+        {
+            // Cursor moved off-canvas: clear stale hover and press state so
+            // pointerExit/pointerUp fire on the previously hovered/pressed
+            // object when the cursor returns, instead of leaving the button
+            // stuck in the hovered/pressed visual state.
+            ResetHoverState();
+            ClearPendingPress();
+            _wasLeftDown = isLeftDown;
+            return;
+        }
 
         var raycaster = _activeCanvas.GetComponent<GraphicRaycaster>();
-        if (raycaster == null) return;
+        if (raycaster == null)
+        {
+            ResetHoverState();
+            _wasLeftDown = isLeftDown;
+            return;
+        }
 
         var ped = _pointerEventData;
         if (ped == null)
@@ -338,6 +363,7 @@ public class VrUiCursor: NOVRBehaviour
         ped.position = screenPoint;
         ped.delta = Vector2.zero;
         ped.button = PointerEventData.InputButton.Left;
+        ped.pressPosition = screenPoint;
 
         var results = new List<RaycastResult>();
         raycaster.Raycast(ped, results);
@@ -430,6 +456,39 @@ public class VrUiCursor: NOVRBehaviour
             t = t.parent;
         }
         return obj;
+    }
+
+    private void ResetHoverState()
+    {
+        if (_hovered != null && _pointerEventData != null)
+        {
+            ExecuteEvents.ExecuteHierarchy(_hovered, _pointerEventData, ExecuteEvents.pointerExitHandler);
+        }
+        _hovered = null;
+        _cursorOverInteractive = false;
+    }
+
+    private void ClearPendingPress()
+    {
+        // If a press is still pending (cursor moved off-canvas mid-click),
+        // fire pointerUp on the original target so the button isn't left
+        // stuck in the pressed state and Unity's Selectable state machine
+        // doesn't carry stale pointerPress into the next click.
+        if (_pointerEventData == null)
+        {
+            _pointerPress = null;
+            return;
+        }
+        if (_pointerPress != null)
+        {
+            ExecuteEvents.ExecuteHierarchy(_pointerPress, _pointerEventData, ExecuteEvents.pointerUpHandler);
+        }
+        _pointerPress = null;
+        _pointerEventData.pointerPress = null;
+        _pointerEventData.rawPointerPress = null;
+        _pointerEventData.pointerDrag = null;
+        _pointerEventData.pointerClick = null;
+        _pointerEventData.eligibleForClick = false;
     }
 
     private bool DisableStandardUIModule()
@@ -806,9 +865,10 @@ public class VrUiCursor: NOVRBehaviour
 
     private void LateUpdate()
     {
-        while (_deferredActions.TryDequeue(out var action))
+        foreach (var action in _deferredActions)
         {
             action();
         }
+        _deferredActions.Clear();
     }
 }

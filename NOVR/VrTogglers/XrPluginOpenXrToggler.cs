@@ -1,4 +1,5 @@
-﻿using UnityEngine.XR.Management;
+﻿using UnityEngine;
+using UnityEngine.XR.Management;
 using UnityEngine.XR.OpenXR;
 
 namespace NOVR.VrTogglers;
