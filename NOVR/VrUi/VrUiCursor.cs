@@ -360,10 +360,19 @@ public class VrUiCursor: NOVRBehaviour
             _pointerEventData = ped;
         }
 
+        // Compute delta from the previous screen position before overwriting it, so
+        // Slider.OnDrag/ScrollRect.OnDrag receive a non-zero delta when the cursor
+        // moves between frames while a button/trigger is held.
+        ped.delta = screenPoint - ped.position;
         ped.position = screenPoint;
-        ped.delta = Vector2.zero;
         ped.button = PointerEventData.InputButton.Left;
-        ped.pressPosition = screenPoint;
+        // pressPosition tracks the initial press point — only set it when no press
+        // is currently active. (The original code re-set it every frame, which made
+        // it useless for click-vs-drag intent checks inside Unity's EventSystem.)
+        if (_pointerPress == null && !_wasLeftDown && !isLeftDown)
+        {
+            ped.pressPosition = screenPoint;
+        }
 
         var results = new List<RaycastResult>();
         raycaster.Raycast(ped, results);
@@ -408,10 +417,14 @@ public class VrUiCursor: NOVRBehaviour
                 _pointerPress = current;
                 ped.pressPosition = screenPoint;
                 ped.pointerPress = current;
+                ped.pointerPressRaycast = ped.pointerCurrentRaycast;
+                ped.pointerDrag = current;
+                ped.rawPointerPress = current;
                 ped.clickTime = Time.unscaledTime;
                 ped.clickCount = 1;
                 if (current != null)
                 {
+                    ExecuteEvents.ExecuteHierarchy(current, ped, ExecuteEvents.initializePotentialDrag);
                     ExecuteEvents.ExecuteHierarchy(current, ped, ExecuteEvents.pointerDownHandler);
                 }
             }
@@ -439,6 +452,11 @@ public class VrUiCursor: NOVRBehaviour
                 }
             }
             _pointerPress = null;
+            // Reset pressPosition so the next press records its initial location.
+            ped.pressPosition = default;
+            ped.pointerPressRaycast = default;
+            ped.pointerDrag = null;
+            ped.rawPointerPress = null;
         }
 
         _wasLeftDown = isLeftDown;
@@ -447,15 +465,20 @@ public class VrUiCursor: NOVRBehaviour
     private static GameObject? GetEventRoot(GameObject? obj)
     {
         if (obj == null) return null;
-        // Walk up to find the first ancestor with IPointerClickHandler (a button root)
+        // Walk up to find the first ancestor with IPointerClickHandler (a button root),
+        // or a Selectable (Slider/Toggle/Dropdown/InputField) — children of Selectables
+        // (Handle, Fill, Background) need pointer events bubbled to the Selectable itself.
         Transform t = obj.transform;
+        Transform? selectableRoot = null;
         while (t != null)
         {
             if (t.GetComponent<IPointerClickHandler>() != null)
                 return t.gameObject;
+            if (selectableRoot == null && t.GetComponent<Selectable>() != null)
+                selectableRoot = t;
             t = t.parent;
         }
-        return obj;
+        return selectableRoot != null ? selectableRoot.gameObject : obj;
     }
 
     private void ResetHoverState()
