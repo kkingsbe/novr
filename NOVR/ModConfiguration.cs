@@ -25,6 +25,7 @@ public class ModConfiguration
     public readonly ConfigEntry<float> CockpitHeadForwardOffset;
     public readonly ConfigEntry<float> CockpitHeadRightOffset;
     public readonly ConfigEntry<bool> CockpitStableMode;
+    public readonly ConfigEntry<bool> StayInCockpitOnEject;
     public readonly ConfigEntry<KeyCode> RecenterShortcut;
     public readonly ConfigEntry<bool> ShowRecenterInPauseMenu;
     public readonly ConfigEntry<bool> SavePositionTrigger;
@@ -120,6 +121,13 @@ public class ModConfiguration
             "When enabled, the cockpit HUD rolls with the aircraft (cockpit-as-reference-frame). " +
             "When disabled, the HUD stays horizon-stable while the cockpit rotates around it. " +
             "Disable only if the stable mode causes discomfort.");
+
+        StayInCockpitOnEject = config.Bind(
+            "VR",
+            "Stay In Cockpit On Eject",
+            false,
+            "When enabled, the camera remains in first-person cockpit mode after ejecting instead of switching to the 3rd-person chase/external view. " +
+            "Disable to restore the game's default behavior of showing the chase camera around the ejecting pilot.");
 
         RecenterShortcut = config.Bind(
             "Input",

@@ -33,6 +33,8 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
     private Button? _nativeUiToggleButton;
     private Text? _environmentValueText;
     private Button? _environmentToggleButton;
+    private Button? _stayInCockpitOnEjectToggleButton;
+    private Text? _stayInCockpitOnEjectValueText;
     private Text? _scaleValueText;
     private Text? _distanceValueText;
     private Text? _heightValueText;
@@ -87,6 +89,15 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
             ToggleEnvironment,
             out _environmentToggleButton,
             out _environmentValueText);
+
+        CreateToggleRow(
+            panel,
+            "STAY IN COCKPIT ON EJECT",
+            "Remain in first-person cockpit camera after ejecting.",
+            new Vector2(0f, 50f),
+            ToggleStayInCockpitOnEject,
+            out _stayInCockpitOnEjectToggleButton,
+            out _stayInCockpitOnEjectValueText);
 
         CreateText("Placement Header", panel, "PLACEMENT", new Vector2(0f, 50f), new Vector2(860f, 30f), 17, TextAnchor.MiddleCenter, new Color(0.84f, 0.90f, 0.92f, 1f));
 
@@ -208,6 +219,7 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
         config.NativeMenuDistance.Value = DefaultDistance;
         config.NativeMenuHeightOffset.Value = DefaultHeightOffset;
         config.HudMinimapOpacity.Value = DefaultMinimapOpacity;
+        config.StayInCockpitOnEject.Value = false;
         SaveAndRefresh("VR UI settings reset.");
     }
 
@@ -235,6 +247,18 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
             : "3D menu environment disabled.");
     }
 
+    private void ToggleStayInCockpitOnEject()
+    {
+        var config = ModConfiguration.Instance;
+        var nextValue = !config.StayInCockpitOnEject.Value;
+        config.StayInCockpitOnEject.Value = nextValue;
+        config.Config.Save();
+        RefreshValues();
+        SetStatus(nextValue
+            ? "Will stay in cockpit on eject."
+            : "Will switch to chase camera on eject.");
+    }
+
     private void Recenter()
     {
         _recenter?.Invoke();
@@ -258,6 +282,7 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
         var config = ModConfiguration.Instance;
         RefreshNativeUiToggle(config.EnableNativeMenuUi.Value);
         RefreshEnvironmentToggle(config.EnableNativeMenuEnvironment.Value);
+        RefreshStayInCockpitOnEjectToggle(config.StayInCockpitOnEject.Value);
         if (_scaleValueText != null) _scaleValueText.text = $"{config.NativeMenuScale.Value:0.00}x";
         if (_distanceValueText != null) _distanceValueText.text = $"{config.NativeMenuDistance.Value:0.0} m";
         if (_heightValueText != null) _heightValueText.text = $"{config.NativeMenuHeightOffset.Value:+0.00;-0.00;0.00} m";
@@ -287,6 +312,19 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
         if (_environmentToggleButton != null)
         {
             NativeButtonFeedback.SetNormalColor(_environmentToggleButton, enabled ? ToggleOnColor : ToggleOffColor);
+        }
+    }
+
+    private void RefreshStayInCockpitOnEjectToggle(bool enabled)
+    {
+        if (_stayInCockpitOnEjectValueText != null)
+        {
+            _stayInCockpitOnEjectValueText.text = enabled ? "ON" : "OFF";
+        }
+
+        if (_stayInCockpitOnEjectToggleButton != null)
+        {
+            NativeButtonFeedback.SetNormalColor(_stayInCockpitOnEjectToggleButton, enabled ? ToggleOnColor : ToggleOffColor);
         }
     }
 
