@@ -27,6 +27,7 @@ namespace NOVR.VrUi
     {
         private static readonly List<Canvas> _registeredCanvases = new();
         private static readonly List<RaycastResult> _graphicResults = new();
+        private static readonly List<(float distance, Canvas canvas, Vector3 worldPoint, Vector2 localPoint)> _candidateBuffer = new();
 
         /// <summary>
         /// Set by the cursor after each successful raycast to enable sticky-canvas fallback:
@@ -132,8 +133,8 @@ namespace NOVR.VrUi
         public static bool RaycastCanvases(Ray ray, out CanvasHit hit, bool acceptBackFace = false)
         {
             hit = default;
-            List<(float distance, Canvas canvas, Vector3 worldPoint, Vector2 localPoint)> candidates =
-                new(_registeredCanvases.Count);
+            _candidateBuffer.Clear();
+            var candidates = _candidateBuffer;
 
             var uiCamera = APIBus.CockpitHudCamera;
 
@@ -212,10 +213,10 @@ namespace NOVR.VrUi
         {
             hit = default;
 
-            var uiCamera = APIBus.CockpitHudCamera;
+            _candidateBuffer.Clear();
+            var candidates = _candidateBuffer;
 
-            List<(float distance, Canvas canvas, Vector3 worldPoint, Vector2 localPoint)> candidates =
-                new(_registeredCanvases.Count);
+            var uiCamera = APIBus.CockpitHudCamera;
 
             foreach (var canvas in _registeredCanvases)
             {

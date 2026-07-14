@@ -7,6 +7,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.XR.OpenXR.Input;
 using UnityEngine.XR.OpenXR;
 using UnityEngine.XR.OpenXR.Features;
+using UnityEngine.XR.OpenXR.Features.Interactions;
 
 namespace NOVR;
 
@@ -14,6 +15,9 @@ internal static class OpenXrControllerProfileBootstrap
 {
     private static readonly FieldInfo? FeaturesField = typeof(OpenXRSettings)
         .GetField("features", BindingFlags.Instance | BindingFlags.NonPublic);
+
+    private static readonly object _featuresLock = new();
+    private static bool _hasEnsured;
 
     private static readonly ProfileSpec[] SteamVrControllerProfiles =
     {
@@ -28,9 +32,23 @@ internal static class OpenXrControllerProfileBootstrap
             "Khronos Simple Controller Profile")
     };
 
+    private static readonly Type[] RequiredProfiles =
+    {
+        typeof(OculusTouchControllerProfile),
+    };
+
     public static int ConfigureSteamVrControllerProfiles()
     {
         RegisterOpenXrInputSystemSupportLayouts();
+
+        var runtimeName = OpenXRRuntime.name;
+        bool isSteamVrRuntime = runtimeName.IndexOf("SteamVR", StringComparison.OrdinalIgnoreCase) >= 0
+                                || runtimeName.IndexOf("Oculus", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (!isSteamVrRuntime)
+        {
+            Debug.Log($"[NOVR] OpenXR runtime '{runtimeName}' is not SteamVR/Oculus; skipping SteamVR-only controller profiles. Set EnableExperimentalSteamVrControllerProfiles=false in config to suppress this message.");
+            return 0;
+        }
 
         var settings = OpenXRSettings.Instance;
         if (settings == null)
@@ -68,6 +86,51 @@ internal static class OpenXrControllerProfileBootstrap
 
         Debug.Log($"[NOVR] OpenXR controller profile bootstrap configured {configuredCount} SteamVR-compatible controller profiles. OpenXRSettings featureCount={settings.featureCount}.");
         return configuredCount;
+    }
+
+    public static void EnsureRequired()
+    {
+        lock (_featuresLock)
+        {
+            if (_hasEnsured) return;
+            _hasEnsured = true;
+        }
+
+        ConfigureSteamVrControllerProfiles();
+        RegisterRequiredProfiles();
+    }
+
+    private static void RegisterRequiredProfiles()
+    {
+        var settings = OpenXRSettings.Instance;
+        if (settings == null || FeaturesField == null) return;
+
+        var features = ReadFeatures(settings);
+        var existingTypes = new HashSet<Type>(features.Select(f => f.GetType()));
+        var changed = false;
+
+        foreach (var profileType in RequiredProfiles)
+        {
+            if (existingTypes.Contains(profileType)) continue;
+
+            var feature = ScriptableObject.CreateInstance(profileType) as OpenXRFeature;
+            if (feature == null) continue;
+
+            SetFeatureField(feature, "m_enabled", true);
+            features.Add(feature);
+            changed = true;
+        }
+
+        if (!changed) return;
+
+        var deduped = features
+            .GroupBy(f => f.GetType())
+            .Select(g => g.First())
+            .OrderByDescending(f => ReadIntFeatureField(f, "priority"))
+            .ThenBy(f => ReadStringFeatureField(f, "nameUi"))
+            .ToArray();
+
+        FeaturesField.SetValue(settings, deduped);
     }
 
     private static void RegisterOpenXrInputSystemSupportLayouts()
@@ -163,6 +226,28 @@ internal static class OpenXrControllerProfileBootstrap
     {
         var field = typeof(OpenXRFeature).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         return field?.GetValue(feature) as string ?? "";
+    }
+
+    public static void ClearInjectedProfiles()
+    {
+        lock (_featuresLock)
+        {
+            _hasEnsured = false;
+        }
+
+        var settings = OpenXRSettings.Instance;
+        if (settings == null || FeaturesField == null) return;
+
+        var features = ReadFeatures(settings);
+        var cleaned = features
+            .Where(f => !RequiredProfiles.Contains(f.GetType()))
+            .ToList();
+
+        if (cleaned.Count != features.Count)
+        {
+            FeaturesField.SetValue(settings, cleaned.ToArray());
+            Debug.Log("[NOVR] Cleaned injected controller profiles from OpenXRSettings");
+        }
     }
 
     private readonly struct ProfileSpec

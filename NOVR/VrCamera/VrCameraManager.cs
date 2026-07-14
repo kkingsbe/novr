@@ -151,6 +151,49 @@ public class VrCameraManager: MonoBehaviour
         }
     }
 
+    private void Awake()
+    {
+        Application.onBeforeRender += OnBeforeRenderPose;
+    }
+
+    private void OnDestroy()
+    {
+        Application.onBeforeRender -= OnBeforeRenderPose;
+    }
+
+    private void OnBeforeRenderPose()
+    {
+        Camera rigCamera = GetActiveTrackedCamera();
+        if (rigCamera != null)
+        {
+            ApplyRigPose(rigCamera);
+        }
+    }
+
+    private void ApplyRigPose(Camera camera)
+    {
+        // Rig pose logic extracted from Update
+        // Currently VrCameraManager.Update() doesn't have explicit rig pose logic -
+        // it discovers cameras and sets up the rig. The OnBeforeRenderPose is added
+        // for future use as a hook point. For now, leave ApplyRigPose as a no-op
+        // placeholder that subclasses/extensions can fill.
+    }
+
+    private static Camera? GetActiveTrackedCamera()
+    {
+        // Find the tracked main camera
+        Camera[] cameras = new Camera[Camera.allCamerasCount];
+        Camera.GetAllCameras(cameras);
+        foreach (var camera in cameras)
+        {
+            if (camera != null && camera.CompareTag("MainCamera"))
+            {
+                return camera;
+            }
+        }
+        return null;
+    }
+
     private static void ReparentTrackedChildren(Transform rootCameraTransform, Transform trackedCameraTransform)
     {
         foreach (var childName in TrackedChildNames)

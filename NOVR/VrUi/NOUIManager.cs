@@ -29,12 +29,27 @@ public class NOUIManager : NOVRBehaviour
     private GameObject CreateSmoothedForwardReference()
     {
         var go = new GameObject("SmoothedForwardReference");
-        go.transform.SetParent(transform);
-        
+        ReparentSmoothedReference(go);
+
         var cam = CockpitHudCamera;
         go.transform.position = cam.transform.position;
         go.transform.localRotation = cam.transform.localRotation;
         return go;
+    }
+
+    private void ReparentSmoothedReference(GameObject reference)
+    {
+        if (ModConfiguration.Instance.CockpitStableMode.Value)
+        {
+            var trackedCam = APIBus.CockpitHudCamera;
+            if (trackedCam != null)
+            {
+                reference.transform.SetParent(trackedCam.transform, worldPositionStays: true);
+                return;
+            }
+        }
+
+        reference.transform.SetParent(transform, worldPositionStays: true);
     }
 
     private new void Awake()
@@ -65,6 +80,8 @@ public class NOUIManager : NOVRBehaviour
     {
         base.OnSettingChanged();
         ConfigureUiCameras();
+        if (_smoothedForwardReference != null)
+            ReparentSmoothedReference(_smoothedForwardReference);
     }
 
     private void Update()

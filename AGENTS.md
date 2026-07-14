@@ -56,7 +56,6 @@ Multi-project solution (`NuclearOptionVirtualRealityMod.sln`) with 9 subprojects
 | **NOVR.Installer.Sfx** | net9.0 | Windows self-extracting stub for the installer |
 | **NOVR.Build** | net9.0 | Build orchestration project (no source code) — defines MSBuild props/targets, references all projects, creates release ZIP |
 | **Uuvr.XInput** | C++ (v143) | XInput 1.3 proxy DLL — hooks XInput for VR controller input |
-| **NOVR.SteamVR** | net48 | SteamVR integration (stub — `.csproj` exists, no source files yet) |
 
 ### Dependency graph
 
@@ -65,7 +64,6 @@ NOVR ──> NOVR.XR.OpenXR (private ref)
 NOVR.Patcher ──> NOVR.XR.OpenXR, NOVR.XR.Management (ref only, no output copy)
 NOVR.XR.OpenXR ──> NOVR.XR.Management
 NOVR.XR.OpenVR ──> NOVR.XR.Management
-NOVR.SteamVR ──> NOVR.XR.OpenVR, NOVR.XR.OpenXR
 NOVR.Build ──> NOVR, NOVR.Patcher (ref only)
 NOVR.Installer ──> (standalone)
 NOVR.Installer.Sfx ──> (standalone)
@@ -101,7 +99,7 @@ Auto-detection passes check `NuclearOption_Data/Managed` exists at each path. Or
 | **Mod config** | `NOVR/ModConfiguration.cs` | BepInEx config entries |
 | **VR Camera system** | `NOVR/VrCamera/` | **10 files** — `VrCamera`, `StereoCamera`, `VrCameraManager`, offset management, state patches (`CameraCockpitStatePatch`, `CameraOrbitStatePatch`, `CameraSelectionStatePatch`, `CameraStateManagerMainCameraPatch`, `TurretVrCameraPatch`), `AdditionalCameraData` |
 | **VR UI system** | `NOVR/VrUi/` | `NOUIManager`, `VrUiCursor`, `VrControllerLaser`, `VrControllerInput`, `VrCanvasHitTester`, `UIBehaviorPatcher`, + `UiTranslation/` (2 files: `UITranslationWorldSpace`, `UITranslationBackend`) |
-| **XR togglers** | `NOVR/VrTogglers/` | **5 files** — `VrTogglerManager`, `VrToggler` base, `XrPluginToggler`, `XrPluginOpenXrToggler`, `LegacyOpenVrToggler` |
+| **XR togglers** | `NOVR/VrTogglers/` | **4 files** — `VrTogglerManager`, `VrToggler` base, `XrPluginToggler`, `XrPluginOpenXrToggler` |
 | **Harmony patches** | `NOVR/Patches.cs` | All Harmony postfix/transpiler patches for game classes |
 | **Other NOVR** | `NOVR/` | `APIBus`, `NOVRBehaviour`, `NOVRHeadsetData`, `NOVRPoseDriver`, `FollowTarget`, `LayerHelper`, `TypeExtensions`, `UuvrInput`, `KeyboardKey` |
 | **OpenXR plugin** | `NOVR.XR.OpenXR/` | **18 files** — `OpenXRLoader`, `OpenXRLoaderBase`, `OpenXRLoaderNoPreInit`, `OpenXRUtility`, `OpenXRRestarter`, `OpenXRRuntime`, input/ features, composition layers, API layers |
@@ -332,7 +330,6 @@ The `NOVR.Installer.csproj` `PublishInstallersToDist` target (after Build):
 - **BepInEx 5.x only** — do not use BepInEx 6.x
 - The patcher copies XR support files into `NuclearOption_Data` on every game startup
 - `lib/mono/modern/` — fallback Unity DLLs used when game directory can't be found
-- `lib/Valve.Newtonsoft.Json.dll` — used by NOVR.SteamVR (stub project, no source yet)
 - XR plugin assemblies must use Unity's expected filenames (`Unity.XR.OpenXR.dll`, etc.) for Unity to load them as native plugins
 - The `NOVR` project references `NOVR.XR.OpenXR` with `Private="false"` — reference only, no output copy
 - `NOVR.Patcher` references `NOVR.XR.Management` and `NOVR.XR.OpenXR` with `ReferenceOutputAssembly="false"` — used only for assembly metadata during patching

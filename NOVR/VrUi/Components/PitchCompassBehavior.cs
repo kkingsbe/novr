@@ -106,11 +106,13 @@ public class PitchCompassBehavior : MonoBehaviour
             
             slice.transform.Rotate(Vector3.right, pitchDegrees);
             slice.transform.Rotate(Vector3.forward, 180, Space.Self);
-            slice.transform.position = slice.transform.forward * 1000f;
-            
+            slice.transform.position = slice.transform.forward * 1000f
+                + slice.transform.forward * sliceIndex * 0.02f;
+
             opposite.transform.Rotate(Vector3.right, oppositePitchDegrees);
             opposite.transform.Rotate(Vector3.forward, 180, Space.Self);
-            opposite.transform.position = opposite.transform.forward * 1000f;
+            opposite.transform.position = opposite.transform.forward * 1000f
+                + opposite.transform.forward * (sliceIndex + FullPitchStepCount) * 0.02f;
             
             slice.transform.SetParent(_sliceRoot, true);
             opposite.transform.SetParent(_sliceRoot, true);

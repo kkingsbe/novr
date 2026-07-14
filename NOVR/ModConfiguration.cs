@@ -24,6 +24,7 @@ public class ModConfiguration
     public readonly ConfigEntry<bool> VerboseDiagnostics;
     public readonly ConfigEntry<float> CockpitHeadForwardOffset;
     public readonly ConfigEntry<float> CockpitHeadRightOffset;
+    public readonly ConfigEntry<bool> CockpitStableMode;
     public readonly ConfigEntry<KeyCode> RecenterShortcut;
     public readonly ConfigEntry<bool> ShowRecenterInPauseMenu;
     public readonly ConfigEntry<bool> SavePositionTrigger;
@@ -111,6 +112,14 @@ public class ModConfiguration
             "Cockpit Head Right Offset",
             0.0f,
             "Offset in meters applied to the cockpit head right vector. Moves you left (negative) or right (positive) to correct off-center seating.");
+
+        CockpitStableMode = config.Bind(
+            "VR",
+            "Cockpit Stable Mode",
+            true,
+            "When enabled, the cockpit HUD rolls with the aircraft (cockpit-as-reference-frame). " +
+            "When disabled, the HUD stays horizon-stable while the cockpit rotates around it. " +
+            "Disable only if the stable mode causes discomfort.");
 
         RecenterShortcut = config.Bind(
             "Input",

@@ -149,13 +149,7 @@ DLLEXPORT DWORD WINAPI XInputGetState(_In_ DWORD dwUserIndex, _Out_ XINPUT_STATE
 
 DLLEXPORT DWORD WINAPI XInputSetState(_In_ DWORD dwUserIndex, _In_ XINPUT_VIBRATION *pVibration)
 {
-	//pVibration->wLeftMotorSpeed
-	//pVibration->wRightMotorSpeed
-
-	if (dwUserIndex == 0)
-		return ERROR_SUCCESS;
-	else
-		return ERROR_DEVICE_NOT_CONNECTED;
+	return ERROR_SUCCESS;
 }
 
 

@@ -64,6 +64,7 @@ if (NOVRPlugin.LogSource != null)
         Debug.Log("NOVR has been destroyed. This shouldn't have happened. Recreating...");
 
         Create();
+        OpenXrControllerProfileBootstrap.ClearInjectedProfiles();
     }
 
     private void Start()
@@ -87,7 +88,16 @@ if (NOVRPlugin.LogSource != null)
         }
         
         _vrTogglerManager = new VrTogglerManager();
-        
+
+        if (ModConfiguration.Instance.EnableExperimentalSteamVrControllerProfiles.Value)
+        {
+            OpenXrControllerProfileBootstrap.EnsureRequired();
+        }
+
+        ModConfiguration.Instance.EnableExperimentalSteamVrControllerProfiles.SettingChanged += (_, _) =>
+        {
+            Debug.Log("[NOVR] EnableExperimentalSteamVrControllerProfiles changed. Restart required to take effect.");
+        };
     }
 
 
@@ -96,6 +106,12 @@ if (NOVRPlugin.LogSource != null)
     {
         EnsureNativeMenuEnvironmentAssetCache();
         UpdatePhysicsRate();
+
+        if (ModConfiguration.Instance.RecenterShortcut.Value != KeyCode.None &&
+            Input.GetKeyDown(ModConfiguration.Instance.RecenterShortcut.Value))
+        {
+            NOVRHeadsetData.RecenterCockpitSeat();
+        }
     }
 
     private void EnsureNativeMenuEnvironmentAssetCache()

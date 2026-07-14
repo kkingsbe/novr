@@ -75,14 +75,7 @@ public class VrUiCursor: NOVRBehaviour
     private Ray _lastProbeRay;
     private Vector3 _lastCursorTargetPos;
     private string _lastCanvasName = "";
-    
-    // Paired-diagnostic snapshots for VirtualMouse feed-vs-consume debugging
-    private int _feedFrame;
-    private Vector2 _feedScreenPoint;
-    private Vector3 _feedCameraPos;
-    private Quaternion _feedCameraRot;
-    private float _feedProjM00, _feedProjM11, _feedProjM02, _feedProjM12;
-    private Vector3 _feedCursorWorldPos;
+    private readonly System.Collections.Generic.Queue<System.Action> _deferredActions = new();
 
     // Controller input mode
     private bool _controllerModeActive;
@@ -266,19 +259,6 @@ public class VrUiCursor: NOVRBehaviour
             Vector2 screenPoint = GetScreenPoint();
             if (!_isOffscreen)
             {
-                _feedFrame = Time.frameCount;
-                _feedScreenPoint = screenPoint;
-                _feedCursorWorldPos = _cursor != null ? _cursor.transform.position : Vector3.zero;
-                var snapCam = UiCamera;
-                if (snapCam != null)
-                {
-                    _feedCameraPos = snapCam.transform.position;
-                    _feedCameraRot = snapCam.transform.rotation;
-                    var p = snapCam.projectionMatrix;
-                    _feedProjM00 = p.m00; _feedProjM11 = p.m11;
-                    _feedProjM02 = p.m02; _feedProjM12 = p.m12;
-                }
-
                 FirePointerEvents(screenPoint, _triggerIsPressed);
             }
 
@@ -286,7 +266,7 @@ public class VrUiCursor: NOVRBehaviour
 
             if (triggerDownThisFrame)
             {
-                ForwardMapClickIfNeeded();
+                _deferredActions.Enqueue(ForwardMapClickIfNeeded);
             }
 
             _triggerWasPressed = _triggerIsPressed;
@@ -308,18 +288,6 @@ public class VrUiCursor: NOVRBehaviour
             Vector2 screenPoint = GetScreenPoint();
             if (!_isOffscreen)
             {
-                _feedFrame = Time.frameCount;
-                _feedScreenPoint = screenPoint;
-                _feedCursorWorldPos = _cursor != null ? _cursor.transform.position : Vector3.zero;
-                var snapCam = UiCamera;
-                if (snapCam != null)
-                {
-                    _feedCameraPos = snapCam.transform.position;
-                    _feedCameraRot = snapCam.transform.rotation;
-                    var p = snapCam.projectionMatrix;
-                    _feedProjM00 = p.m00; _feedProjM11 = p.m11;
-                    _feedProjM02 = p.m02; _feedProjM12 = p.m12;
-                }
                 FirePointerEvents(screenPoint, realMouse.leftButton.isPressed);
             }
 
@@ -327,7 +295,7 @@ public class VrUiCursor: NOVRBehaviour
 
             if (realMouse.leftButton.wasPressedThisFrame)
             {
-                ForwardMapClickIfNeeded();
+                _deferredActions.Enqueue(ForwardMapClickIfNeeded);
             }
         }
     }
@@ -539,13 +507,7 @@ public class VrUiCursor: NOVRBehaviour
 
         Transform anchor = GetAnchorTransform();
         Vector3 probeOrigin = anchor != null ? anchor.position : camera.transform.position;
-        Quaternion referenceRotation = GetProjectionReferenceRotation();
-
-        // Compute mouse-driven world direction
-        float cursorPitch = Mathf.Lerp(-45f, 45f, Mathf.Clamp01(mousePos.y / Screen.height));
-        float cursorYaw = Mathf.Lerp(-65f, 65f, Mathf.Clamp01(mousePos.x / Screen.width));
-        Vector3 localDir = Quaternion.Euler(-cursorPitch, cursorYaw, 0f) * Vector3.forward;
-        Vector3 worldDir = referenceRotation * localDir;
+        Vector3 worldDir = ScreenPointToWorldDirection(camera, mousePos);
 
         Ray probeRay = new Ray(probeOrigin, worldDir);
         _lastProbeRay = probeRay;
@@ -630,6 +592,23 @@ public class VrUiCursor: NOVRBehaviour
             _cursor.SetActive(false);
             _hasLastControllerRay = false;
         }
+    }
+
+    private static Vector3 ScreenPointToWorldDirection(Camera camera, Vector2 screenPoint)
+    {
+        float nx = Mathf.Clamp01(screenPoint.x / Screen.width);
+        float ny = Mathf.Clamp01(screenPoint.y / Screen.height);
+
+        var proj = camera.projectionMatrix;
+
+        float invM00 = 1f / proj.m00;
+        float invM11 = 1f / proj.m11;
+
+        float clipX = (2f * nx - 1f - proj.m02) * invM00;
+        float clipY = (2f * ny - 1f - proj.m12) * invM11;
+
+        Vector3 localDir = new Vector3(clipX, clipY, 1f).normalized;
+        return camera.transform.TransformDirection(localDir);
     }
 
     private Quaternion GetProjectionReferenceRotation()
@@ -823,5 +802,13 @@ public class VrUiCursor: NOVRBehaviour
 
         if (closest != null && closestSqr <= maxRadiusSqr)
             closest.ClickIcon(global::MapIcon.ClickSource.Mouse);
+    }
+
+    private void LateUpdate()
+    {
+        while (_deferredActions.TryDequeue(out var action))
+        {
+            action();
+        }
     }
 }

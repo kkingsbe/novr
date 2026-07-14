@@ -18,9 +18,4 @@ public class VrTogglerManager
         }
         _toggler = new XrPluginOpenXrToggler();
     }
-
-    public void ToggleVr()
-    {
-        _toggler.SetVrEnabled(!_toggler.IsVrEnabled);
-    }
 }

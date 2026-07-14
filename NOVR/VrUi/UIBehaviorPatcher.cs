@@ -39,11 +39,19 @@ public class UIBehaviorPatcher : NOVRBehaviour
     private static Dictionary<Component, Type> _toPatch_component = new();
     private static Dictionary<string, List<Type>> _toPatch_name = new();
     private static List<GameObject> _toReactivate = new();
+    private static GameObject[] _cachedAllObjects = System.Array.Empty<GameObject>();
+    private static bool _cacheDirty = true;
 
 
     static UIBehaviorPatcher()
     {
         SceneManager.sceneLoaded += SceneLoaded;
+    }
+
+    private void Awake()
+    {
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += (_, _) => { _cacheDirty = true; };
+        UnityEngine.SceneManagement.SceneManager.sceneUnloaded += (_) => { _cacheDirty = true; };
     }
 
     private static void SceneLoaded(Scene arg0, LoadSceneMode arg1)
@@ -126,9 +134,14 @@ public class UIBehaviorPatcher : NOVRBehaviour
 
         if (_toPatch_name.Count > 0)
         {
-            foreach (var go in Resources.FindObjectsOfTypeAll(typeof(GameObject)) as GameObject[])
+            if (_cacheDirty)
             {
+                _cachedAllObjects = Resources.FindObjectsOfTypeAll(typeof(GameObject)) as GameObject[] ?? System.Array.Empty<GameObject>();
+                _cacheDirty = false;
+            }
 
+            foreach (var go in _cachedAllObjects)
+            {
                 var name = go.name;
                 if (_toPatch_name.TryGetValue(name, out var toAddList))
                 {

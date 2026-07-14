@@ -22,6 +22,17 @@
     <ProjectReference Include="../NOVR.Patcher/NOVR.Patcher.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <Target Name="GenerateVersionTxt" BeforeTargets="CreateReleaseZip">
+    <WriteLinesToFile
+      File="$(GameLayoutOutputDir)\version.txt"
+      Lines="NOVR $(Version)"
+      Overwrite="true"
+      Encoding="UTF-8" />
+    <ItemGroup>
+      <VersionFile Include="$(GameLayoutOutputDir)\version.txt" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="CreateReleaseZip" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <MakeDir Directories="$(ReleasePackageDistDir)" />
     <Delete Files="$(ReleasePackagePath)" />

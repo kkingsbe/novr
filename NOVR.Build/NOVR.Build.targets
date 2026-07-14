@@ -31,4 +31,9 @@
       DestinationFiles="@(GameDeployFiles->'$(NuclearOptionGameDirResolved)/$(GameDeployPath)/%(RecursiveDir)%(Filename)%(Extension)')"
       SkipUnchangedFiles="true" />
   </Target>
+
+  <Target Name="WarnIfGameNotFound" AfterTargets="Build"
+          Condition="'$(NuclearOptionGameDirResolved)' == 'NUCLEAR_OPTION_NOT_FOUND'">
+    <Warning Text="Nuclear Option game directory not found. Set NuclearOptionGameDir property or NUCLEAR_OPTION_GAME_DIR env var to enable auto-deployment." />
+  </Target>
 </Project>

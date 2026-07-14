@@ -51,6 +51,22 @@ public class NOVRHeadsetData : NOVRBehaviour
         );
     }
 
+    public static void RecenterRigOrigin()
+    {
+        TranslationAnchor = GetHeadPosition() + new Vector3(
+            -ModConfiguration.Instance.CockpitHeadForwardOffset.Value,
+            0f,
+            -ModConfiguration.Instance.CockpitHeadRightOffset.Value
+        );
+        Debug.Log("[NOVR] Rig origin recentered");
+    }
+
+    public static void RecenterCockpitSeat()
+    {
+        CalibrateTranslation();
+        Debug.Log("[NOVR] Cockpit seat recentered");
+    }
+
     protected override void Awake()
     {
         base.Awake();
