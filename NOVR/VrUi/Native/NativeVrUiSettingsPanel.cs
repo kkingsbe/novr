@@ -69,7 +69,7 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
         CreateImage("Background", _container, BackgroundColor, Vector2.zero, _container.sizeDelta);
         CreateText("Header", _container, "VR UI SETTINGS", new Vector2(0f, NativeUiLayout.HeaderY), NativeUiLayout.HeaderSize, 22, TextAnchor.MiddleCenter, Color.white);
 
-        var panel = CreatePanel("VR UI Settings Panel", _container, PanelColor, Vector2.zero, new Vector2(980f, 720f));
+        var panel = CreatePanel("VR UI Settings Panel", _container, PanelColor, Vector2.zero, new Vector2(980f, 790f));
         CreateText("Panel Header", panel, "MENU MODE", new Vector2(0f, 310f), new Vector2(860f, 34f), 19, TextAnchor.MiddleCenter, Color.white);
 
         CreateToggleRow(
@@ -99,13 +99,13 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
             out _stayInCockpitOnEjectToggleButton,
             out _stayInCockpitOnEjectValueText);
 
-        CreateText("Placement Header", panel, "PLACEMENT", new Vector2(0f, 50f), new Vector2(860f, 30f), 17, TextAnchor.MiddleCenter, new Color(0.84f, 0.90f, 0.92f, 1f));
+        CreateText("Placement Header", panel, "PLACEMENT", new Vector2(0f, -20f), new Vector2(860f, 30f), 17, TextAnchor.MiddleCenter, new Color(0.84f, 0.90f, 0.92f, 1f));
 
         CreateSettingRow(
             panel,
             "SCALE",
             "Overall native menu size.",
-            new Vector2(0f, -30f),
+            new Vector2(0f, -100f),
             () => ChangeScale(-0.05f),
             () => ChangeScale(0.05f),
             out _scaleValueText);
@@ -114,7 +114,7 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
             panel,
             "DISTANCE",
             "Meters from your headset when opened or recentered.",
-            new Vector2(0f, -125f),
+            new Vector2(0f, -195f),
             () => ChangeDistance(-0.1f),
             () => ChangeDistance(0.1f),
             out _distanceValueText);
@@ -123,25 +123,25 @@ public sealed class NativeVrUiSettingsPanel : MonoBehaviour
             panel,
             "HEIGHT OFFSET",
             "Vertical offset in meters relative to your headset.",
-            new Vector2(0f, -220f),
+            new Vector2(0f, -290f),
             () => ChangeHeightOffset(-0.05f),
             () => ChangeHeightOffset(0.05f),
             out _heightValueText);
 
-        CreateText("Map Header", panel, "MAP", new Vector2(0f, -315f), new Vector2(860f, 30f), 17, TextAnchor.MiddleCenter, new Color(0.84f, 0.90f, 0.92f, 1f));
+        CreateText("Map Header", panel, "MAP", new Vector2(0f, -385f), new Vector2(860f, 30f), 17, TextAnchor.MiddleCenter, new Color(0.84f, 0.90f, 0.92f, 1f));
 
         CreateSettingRow(
             panel,
             "MINIMAP OPACITY",
             "Opacity of the small minimap in the HUD (not the full map).",
-            new Vector2(0f, -395f),
+            new Vector2(0f, -465f),
             () => ChangeMinimapOpacity(-0.05f),
             () => ChangeMinimapOpacity(0.05f),
             out _minimapOpacityValueText);
 
-        CreateMenuButton("RESET DEFAULTS", panel, new Vector2(-160f, -310f), new Vector2(220f, 42f), ButtonColor, ResetDefaults, 13);
-        CreateMenuButton("RECENTER", panel, new Vector2(160f, -310f), new Vector2(180f, 42f), ActionButtonColor, Recenter, 14);
-        _statusText = CreateText("Status", panel, "", new Vector2(0f, -340f), new Vector2(860f, 34f), 13, TextAnchor.MiddleCenter, new Color(0.84f, 0.90f, 0.92f, 1f));
+        CreateMenuButton("RESET DEFAULTS", panel, new Vector2(-160f, -380f), new Vector2(220f, 42f), ButtonColor, ResetDefaults, 13);
+        CreateMenuButton("RECENTER", panel, new Vector2(160f, -380f), new Vector2(180f, 42f), ActionButtonColor, Recenter, 14);
+        _statusText = CreateText("Status", panel, "", new Vector2(0f, -410f), new Vector2(860f, 34f), 13, TextAnchor.MiddleCenter, new Color(0.84f, 0.90f, 0.92f, 1f));
 
         CreateMenuButton("BACK", _container, new Vector2(NativeUiLayout.FooterLeftX, NativeUiLayout.FooterY), NativeUiLayout.FooterButtonSize, BackButtonColor, Close, 15);
         NativePanelTransition.SetVisible(_container, false, instant: true);
