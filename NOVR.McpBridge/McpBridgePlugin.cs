@@ -14,6 +14,7 @@ public sealed class McpBridgePlugin : BepInEx.BaseUnityPlugin
         ToolRegistry.DiscoverFromAssembly(typeof(McpBridgePlugin).Assembly);
 
         _ = MainThreadDispatcher.Instance;
+        Logs.LogBuffer.Instance.EnsureHooked();
 
         _server = new McpHttpServer(port);
         _server.Start();
