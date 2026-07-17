@@ -1,4 +1,3 @@
-using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,8 +12,8 @@ public class PitchCompassBehavior : MonoBehaviour
     private const float PitchStepDegrees = PitchRangeDegrees / FullPitchStepCount;
     private const string SliceRootName = "NOVR_PitchCompassSlices";
 
-    private static readonly FieldInfo PitchCompassField = AccessTools.Field(typeof(FlightHud), "pitchCompass");
-    private static readonly FieldInfo CockpitTransformField = AccessTools.Field(typeof(FlightHud), "cockpitTransform");
+    private static readonly AccessTools.FieldRef<FlightHud, RawImage> PitchCompassRef = AccessTools.FieldRefAccess<FlightHud, RawImage>("pitchCompass");
+    private static readonly AccessTools.FieldRef<FlightHud, Transform> CockpitTransformRef = AccessTools.FieldRefAccess<FlightHud, Transform>("cockpitTransform");
 
     private RawImage _sourcePitchCompass;
     private RectTransform _sliceRoot;
@@ -78,7 +77,7 @@ public class PitchCompassBehavior : MonoBehaviour
             return;
         }
 
-        _sourcePitchCompass = PitchCompassField.GetValue(_flightHud) as RawImage;
+        _sourcePitchCompass = PitchCompassRef(_flightHud);
         if (_sourcePitchCompass == null)
         {
             Debug.LogWarning($"{nameof(PitchCompassBehavior)}: Could not find pitchCompass RawImage");
@@ -137,7 +136,7 @@ public class PitchCompassBehavior : MonoBehaviour
             return false;
         }
 
-        var cockpitTransform = CockpitTransformField.GetValue(_flightHud) as Transform;
+        var cockpitTransform = CockpitTransformRef(_flightHud);
         if (cockpitTransform == null)
         {
             return false;

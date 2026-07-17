@@ -87,9 +87,9 @@ internal static class ThreatItemPatch
         var distance = FastMath.Distance(aircraft.transform.position, missile.transform.position);
         var color = Color.green;
         if (missile.seekerMode == Missile.SeekerMode.activeLock)
-            color = Color.Lerp(Color.yellow, Color.red, Mathf.Sin(Time.timeSinceLevelLoad * 20f) + 0.5f);
+            color = Color.Lerp(Color.yellow, Color.red, Mathf.Sin(Time.timeSinceLevelLoad * 20f) * 0.5f + 0.5f);
         else if (missile.seekerMode == Missile.SeekerMode.activeSearch)
-            color = Color.Lerp(Color.green, Color.yellow, Mathf.Sin(Time.timeSinceLevelLoad * 10f) + 0.5f);
+            color = Color.Lerp(Color.green, Color.yellow, Mathf.Sin(Time.timeSinceLevelLoad * 10f) * 0.5f + 0.5f);
         
         var gapOffset = GetSmoothedGapOffset(__instance);
 

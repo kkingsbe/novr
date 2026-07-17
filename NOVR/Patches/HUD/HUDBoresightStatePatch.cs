@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using HarmonyLib;
 using NOVR.PatchHelper;
 using UnityEngine;
@@ -10,15 +9,15 @@ namespace NOVR.Patches.HUD;
 internal static class HUDBoresightStatePatch
 {
     private const float HudDistance = 1000.0f;
-    private static readonly FieldInfo ProjectedPositionField = AccessTools.Field(typeof(HUDBoresightState), "projectedPosition");
-    private static readonly FieldInfo TargetPositionField = AccessTools.Field(typeof(HUDBoresightState), "targetPosition");
-    private static readonly FieldInfo BoresightField = AccessTools.Field(typeof(HUDBoresightState), "boresight");
-    private static readonly FieldInfo LineField = AccessTools.Field(typeof(HUDBoresightState), "line");
-    private static readonly FieldInfo GunDirectionRelativeField = AccessTools.Field(typeof(HUDBoresightState), "gunDirectionRelative");
-    private static readonly FieldInfo TargetDesignatorField = AccessTools.Field(typeof(HUDBoresightState), "targetDesignator");
-    private static readonly FieldInfo ControlsFilterField = AccessTools.Field(typeof(HUDBoresightState), "controlsFilter");
-    
-    
+    private static readonly AccessTools.FieldRef<HUDBoresightState, Image> ProjectedPositionRef = AccessTools.FieldRefAccess<HUDBoresightState, Image>("projectedPosition");
+    private static readonly AccessTools.FieldRef<HUDBoresightState, Image> TargetPositionRef = AccessTools.FieldRefAccess<HUDBoresightState, Image>("targetPosition");
+    private static readonly AccessTools.FieldRef<HUDBoresightState, Image> BoresightRef = AccessTools.FieldRefAccess<HUDBoresightState, Image>("boresight");
+    private static readonly AccessTools.FieldRef<HUDBoresightState, Image> LineRef = AccessTools.FieldRefAccess<HUDBoresightState, Image>("line");
+    private static readonly AccessTools.FieldRef<HUDBoresightState, Vector3> GunDirectionRelativeRef = AccessTools.FieldRefAccess<HUDBoresightState, Vector3>("gunDirectionRelative");
+    private static readonly AccessTools.FieldRef<HUDBoresightState, Image> TargetDesignatorRef = AccessTools.FieldRefAccess<HUDBoresightState, Image>("targetDesignator");
+    private static readonly AccessTools.FieldRef<HUDBoresightState, ControlsFilter> ControlsFilterRef = AccessTools.FieldRefAccess<HUDBoresightState, ControlsFilter>("controlsFilter");
+
+
     [PatchPostfix(typeof(HUDBoresightState), nameof(HUDBoresightState.UpdateWeaponDisplay))]
     private static void UpdateWeaponDisplay(HUDBoresightState __instance, Aircraft aircraft, List<Unit> targetList)
     {
@@ -27,13 +26,13 @@ internal static class HUDBoresightStatePatch
         if (mainCamera == null || cockpitHudCamera == null || aircraft == null)
             return;
 
-        var boresight = (Image)BoresightField.GetValue(__instance);
-        var targetDesignator = (Image)TargetDesignatorField.GetValue(__instance);
+        var boresight = BoresightRef(__instance);
+        var targetDesignator = TargetDesignatorRef(__instance);
         if (boresight == null)
             return;
 
         //boresight.transform.forward = cockpitHudCamera.transform.forward;
-        var gunDirectionRelative = (Vector3)GunDirectionRelativeField.GetValue(__instance);
+        var gunDirectionRelative = GunDirectionRelativeRef(__instance);
         var gunDirection = aircraft.transform.TransformDirection(gunDirectionRelative);
         var boresightWorldPosition = aircraft.transform.position + gunDirection * HudDistance;
         if (TryProjectToCockpitHud(boresightWorldPosition, out var boresightHudPosition))
@@ -66,7 +65,7 @@ internal static class HUDBoresightStatePatch
         if (!aircraft.NetworkHQ.IsTargetPositionAccurate(target, 10.0f))
             return;
 
-        var controlsFilter = (ControlsFilter)ControlsFilterField.GetValue(__instance);
+        var controlsFilter = ControlsFilterRef(__instance);
         if (controlsFilter == null)
             return;
 
@@ -79,10 +78,10 @@ internal static class HUDBoresightStatePatch
 
     private static void UpdateLeadDisplay(HUDBoresightState state, Unit target, GlobalPosition aimPoint)
     {
-        var boresight = (Image)BoresightField.GetValue(state);
-        var targetPosition = (Image)TargetPositionField.GetValue(state);
-        var projectedPosition = (Image)ProjectedPositionField.GetValue(state);
-        var line = (Image)LineField.GetValue(state);
+        var boresight = BoresightRef(state);
+        var targetPosition = TargetPositionRef(state);
+        var projectedPosition = ProjectedPositionRef(state);
+        var line = LineRef(state);
         var cockpitHudCamera = APIBus.CockpitHudCamera;
         if (boresight == null || targetPosition == null || projectedPosition == null || line == null || cockpitHudCamera == null)
             return;

@@ -5,6 +5,7 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.SceneManagement;
 
 namespace NOVR.VrCamera;
 
@@ -16,8 +17,37 @@ public class VrCameraManager: MonoBehaviour
     private static readonly string[] TrackedChildNames = {"cockpitRenderer", "postProcessingRenderer"};
 
     public static HashSet<Camera> IgnoredCameras = new();
-    
-    private void Update() // Todo: Make me behave on events if possible
+
+    private bool _sceneDirty;
+
+    private void OnEnable()
+    {
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        _sceneDirty = true;
+    }
+
+    private void Start()
+    {
+        ScanForCameras();
+    }
+
+    private void Update()
+    {
+        if (!_sceneDirty) return;
+        _sceneDirty = false;
+        ScanForCameras();
+    }
+
+    private void ScanForCameras()
     {
         Camera[] cameras = new Camera[Camera.allCamerasCount];
         Camera.GetAllCameras(cameras);
@@ -153,45 +183,10 @@ public class VrCameraManager: MonoBehaviour
 
     private void Awake()
     {
-        Application.onBeforeRender += OnBeforeRenderPose;
     }
 
     private void OnDestroy()
     {
-        Application.onBeforeRender -= OnBeforeRenderPose;
-    }
-
-    private void OnBeforeRenderPose()
-    {
-        Camera rigCamera = GetActiveTrackedCamera();
-        if (rigCamera != null)
-        {
-            ApplyRigPose(rigCamera);
-        }
-    }
-
-    private void ApplyRigPose(Camera camera)
-    {
-        // Rig pose logic extracted from Update
-        // Currently VrCameraManager.Update() doesn't have explicit rig pose logic -
-        // it discovers cameras and sets up the rig. The OnBeforeRenderPose is added
-        // for future use as a hook point. For now, leave ApplyRigPose as a no-op
-        // placeholder that subclasses/extensions can fill.
-    }
-
-    private static Camera? GetActiveTrackedCamera()
-    {
-        // Find the tracked main camera
-        Camera[] cameras = new Camera[Camera.allCamerasCount];
-        Camera.GetAllCameras(cameras);
-        foreach (var camera in cameras)
-        {
-            if (camera != null && camera.CompareTag("MainCamera"))
-            {
-                return camera;
-            }
-        }
-        return null;
     }
 
     private static void ReparentTrackedChildren(Transform rootCameraTransform, Transform trackedCameraTransform)

@@ -28,6 +28,16 @@ namespace NOVR.VrUi
         private static readonly List<Canvas> _registeredCanvases = new();
         private static readonly List<RaycastResult> _graphicResults = new();
         private static readonly List<(float distance, Canvas canvas, Vector3 worldPoint, Vector2 localPoint)> _candidateBuffer = new();
+        private static PointerEventData? _scratchPointerEventData;
+
+        private static PointerEventData GetScratchPointerEventData()
+        {
+            if (_scratchPointerEventData == null)
+            {
+                _scratchPointerEventData = new PointerEventData(EventSystem.current);
+            }
+            return _scratchPointerEventData;
+        }
 
         /// <summary>
         /// Set by the cursor after each successful raycast to enable sticky-canvas fallback:
@@ -116,10 +126,8 @@ namespace NOVR.VrUi
                 if (camera != null)
                 {
                     Vector3 screenPoint = camera.WorldToScreenPoint(worldPoint);
-                    var ped = new PointerEventData(EventSystem.current)
-                    {
-                        position = new Vector2(screenPoint.x, screenPoint.y)
-                    };
+                    var ped = GetScratchPointerEventData();
+                    ped.position = new Vector2(screenPoint.x, screenPoint.y);
                     _graphicResults.Clear();
                     raycaster.Raycast(ped, _graphicResults);
                     hasGraphic = _graphicResults.Count > 0;
@@ -317,10 +325,8 @@ namespace NOVR.VrUi
             Vector3 worldPoint = canvas.transform.TransformPoint(localPoint);
             Vector3 screenPoint = camera.WorldToScreenPoint(worldPoint);
 
-            var pointerEventData = new PointerEventData(EventSystem.current)
-            {
-                position = new Vector2(screenPoint.x, screenPoint.y)
-            };
+            var pointerEventData = GetScratchPointerEventData();
+            pointerEventData.position = new Vector2(screenPoint.x, screenPoint.y);
 
             _graphicResults.Clear();
             raycaster.Raycast(pointerEventData, _graphicResults);

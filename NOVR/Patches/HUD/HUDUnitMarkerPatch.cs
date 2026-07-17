@@ -1,4 +1,3 @@
-using System.Reflection;
 using HarmonyLib;
 using NOVR.PatchHelper;
 using NOVR.VrUi.HarmonyPatches;
@@ -11,22 +10,22 @@ namespace NOVR.Patches.HUD;
 // Ensures our hud markers are in our VR UI camera's space
 internal static class HUDUnitMarkerPatch
 { 
-    private static readonly FieldInfo HiddenField = AccessTools.Field(typeof(HUDUnitMarker), "hidden");
-    private static readonly FieldInfo TransformField = AccessTools.Field(typeof(HUDUnitMarker), "_transform");
-    private static readonly FieldInfo IconField = AccessTools.Field(typeof(HUDUnitMarker), "icon");
-    private static readonly FieldInfo TimeCreatedField = AccessTools.Field(typeof(HUDUnitMarker), "timeCreated");
-    private static readonly FieldInfo ColorField = AccessTools.Field(typeof(HUDUnitMarker), "color");
-    private static readonly FieldInfo FlashingField = AccessTools.Field(typeof(HUDUnitMarker), "flashing");
-    private static readonly FieldInfo TargetArrowField = AccessTools.Field(typeof(CombatHUD), "targetArrow");
-    private static readonly FieldInfo TargetArrowTailField = AccessTools.Field(typeof(CombatHUD), "targetArrowTail");
-    private static readonly FieldInfo TargetTextField = AccessTools.Field(typeof(CombatHUD), "targetText");
-    private static readonly FieldInfo TargetInfoField = AccessTools.Field(typeof(CombatHUD), "targetInfo");
-    private static bool GetHidden(HUDUnitMarker marker) => (bool)HiddenField.GetValue(marker);
-    private static Transform GetTransform(HUDUnitMarker marker) => (Transform)TransformField.GetValue(marker);
-    private static Sprite GetIcon(HUDUnitMarker marker) => (Sprite)IconField.GetValue(marker);
-    private static float GetTimeCreated(HUDUnitMarker marker) => (float)TimeCreatedField.GetValue(marker);
-    private static Color GetColor(HUDUnitMarker marker) => (Color)ColorField.GetValue(marker);
-    private static bool GetFlashing(HUDUnitMarker marker) => (bool)FlashingField.GetValue(marker);
+    private static readonly AccessTools.FieldRef<HUDUnitMarker, bool> HiddenRef = AccessTools.FieldRefAccess<HUDUnitMarker, bool>("hidden");
+    private static readonly AccessTools.FieldRef<HUDUnitMarker, Transform> TransformRef = AccessTools.FieldRefAccess<HUDUnitMarker, Transform>("_transform");
+    private static readonly AccessTools.FieldRef<HUDUnitMarker, Sprite> IconRef = AccessTools.FieldRefAccess<HUDUnitMarker, Sprite>("icon");
+    private static readonly AccessTools.FieldRef<HUDUnitMarker, float> TimeCreatedRef = AccessTools.FieldRefAccess<HUDUnitMarker, float>("timeCreated");
+    private static readonly AccessTools.FieldRef<HUDUnitMarker, Color> ColorRef = AccessTools.FieldRefAccess<HUDUnitMarker, Color>("color");
+    private static readonly AccessTools.FieldRef<HUDUnitMarker, bool> FlashingRef = AccessTools.FieldRefAccess<HUDUnitMarker, bool>("flashing");
+    private static readonly AccessTools.FieldRef<CombatHUD, Image> TargetArrowRef = AccessTools.FieldRefAccess<CombatHUD, Image>("targetArrow");
+    private static readonly AccessTools.FieldRef<CombatHUD, Transform> TargetArrowTailRef = AccessTools.FieldRefAccess<CombatHUD, Transform>("targetArrowTail");
+    private static readonly AccessTools.FieldRef<CombatHUD, Text> TargetTextRef = AccessTools.FieldRefAccess<CombatHUD, Text>("targetText");
+    private static readonly AccessTools.FieldRef<CombatHUD, Text> TargetInfoRef = AccessTools.FieldRefAccess<CombatHUD, Text>("targetInfo");
+    private static bool GetHidden(HUDUnitMarker marker) => HiddenRef(marker);
+    private static Transform GetTransform(HUDUnitMarker marker) => TransformRef(marker);
+    private static Sprite GetIcon(HUDUnitMarker marker) => IconRef(marker);
+    private static float GetTimeCreated(HUDUnitMarker marker) => TimeCreatedRef(marker);
+    private static Color GetColor(HUDUnitMarker marker) => ColorRef(marker);
+    private static bool GetFlashing(HUDUnitMarker marker) => FlashingRef(marker);
 
     [HarmonyPatch(typeof(HUDUnitMarker), nameof(HUDUnitMarker.UpdatePosition))]
     
@@ -44,7 +43,7 @@ internal static class HUDUnitMarkerPatch
         
         
         
-        var targetInfo = (Text)TargetInfoField.GetValue(SceneSingleton<CombatHUD>.i);
+        var targetInfo = TargetInfoRef(SceneSingleton<CombatHUD>.i);
         if (targetInfo != null)
         {
             targetInfo.transform.rotation = screenSpaceCamera.transform.rotation;
@@ -109,7 +108,7 @@ internal static class HUDUnitMarkerPatch
           if (!GetFlashing(__instance))
             return false;
           Color flashingColor = GetColor(__instance);
-          __instance.image.color = Color.Lerp(flashingColor + Color.yellow, flashingColor, Mathf.Sin(Time.timeSinceLevelLoad * 20f) + 0.5f);
+          __instance.image.color = Color.Lerp(flashingColor + Color.yellow, flashingColor, Mathf.Sin(Time.timeSinceLevelLoad * 20f) * 0.5f + 0.5f);
         }
 
         return false;
@@ -117,9 +116,9 @@ internal static class HUDUnitMarkerPatch
     
     private static void SetTargetArrow(CombatHUD instance, bool enabled, Vector3 position, Vector3 targetPosition, Vector3 up, Component screenSpaceCamera)
     {
-      var targetArrow = (Image)TargetArrowField.GetValue(instance);
-      var targetArrowTail = (Transform)TargetArrowTailField.GetValue(instance);
-      var targetText = (Text)TargetTextField.GetValue(instance);
+      var targetArrow = TargetArrowRef(instance);
+      var targetArrowTail = TargetArrowTailRef(instance);
+      var targetText = TargetTextRef(instance);
 
       targetArrow.enabled = enabled;
       targetText.enabled = enabled;

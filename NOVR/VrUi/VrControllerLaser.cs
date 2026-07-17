@@ -33,7 +33,7 @@ namespace NOVR.VrUi
             _lineRenderer.startWidth = LaserWidth;
             _lineRenderer.endWidth = LaserWidth * 0.5f;
             _lineRenderer.startColor = LaserColor;
-            _lineRenderer.endColor = new Color(LaserColor.r / 255f, LaserColor.g / 255f, LaserColor.b / 255f, 0f);
+            _lineRenderer.endColor = new Color(LaserColor.r, LaserColor.g, LaserColor.b, 0f);
             _lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
             _lineRenderer.sortingOrder = short.MaxValue;
             _lineRenderer.enabled = false;

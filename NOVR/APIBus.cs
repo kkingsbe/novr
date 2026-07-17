@@ -93,9 +93,9 @@ public class APIBus : MonoBehaviour
 
     private void LogExtraDispatcher()
     {
-        if (!_loggedExtraEventsError) return;
+        if (_loggedExtraEventsError) return;
         Debug.LogError($"Additional instances of {typeof(APIBus)}. This should not happen!");
-        
+
         _loggedExtraEventsError = true;
     }
 

@@ -16,11 +16,8 @@ public class Core : MonoBehaviour
 {
     private static bool _isApplicationQuitting;
     
-    private float _originalFixedDeltaTime;
-
     private NOVRHeadsetData? _headsetData;
     private NOUIManager? _vrUi;
-    private PropertyInfo? _refreshRateProperty;
     private VrTogglerManager? _vrTogglerManager;
     
     private Aircraft _aircraft;
@@ -70,14 +67,7 @@ if (NOVRPlugin.LogSource != null)
     private void Start()
     {
         EnsureNativeMenuEnvironmentAssetCache();
-        
-        var xrDeviceType = Type.GetType("UnityEngine.XR.XRDevice, UnityEngine.XRModule") ??
-                           Type.GetType("UnityEngine.XR.XRDevice, UnityEngine.VRModule") ??
-                           Type.GetType("UnityEngine.VR.VRDevice, UnityEngine.VRModule") ??
-                           Type.GetType("UnityEngine.VR.VRDevice, UnityEngine");
 
-        _refreshRateProperty = xrDeviceType?.GetProperty("refreshRate");
-        
         _headsetData = NOVRBehaviour.Create<NOVRHeadsetData>(transform);
         _vrUi = NOVRBehaviour.Create<NOUIManager>(transform);
 
@@ -105,7 +95,6 @@ if (NOVRPlugin.LogSource != null)
     private void Update()
     {
         EnsureNativeMenuEnvironmentAssetCache();
-        UpdatePhysicsRate();
 
         if (ModConfiguration.Instance.RecenterShortcut.Value != KeyCode.None &&
             Input.GetKeyDown(ModConfiguration.Instance.RecenterShortcut.Value))
@@ -123,23 +112,6 @@ if (NOVRPlugin.LogSource != null)
         }
 
         gameObject.AddComponent<NativeMenuEnvironmentAssetCache>();
-    }
-
-    private void UpdatePhysicsRate()
-    {
-        if (_originalFixedDeltaTime == 0)
-        {
-            _originalFixedDeltaTime = Time.fixedDeltaTime;
-        }
-
-        if (_refreshRateProperty == null) return;
-
-        var headsetRefreshRate = (float)_refreshRateProperty.GetValue(null, null);
-        if (headsetRefreshRate <= 0) return;
-
-
-        Time.fixedDeltaTime = _originalFixedDeltaTime;
-        
     }
     private void FixedUpdate()
     {

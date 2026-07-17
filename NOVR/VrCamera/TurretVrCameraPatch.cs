@@ -1,3 +1,4 @@
+using System;
 using HarmonyLib;
 using UnityEngine;
 
@@ -5,6 +6,15 @@ namespace NOVR.VrCamera;
 
 internal static class TurretVrCameraPatch
 {
+    private static readonly AccessTools.FieldRef<Turret, bool> ManualRef = AccessTools.FieldRefAccess<Turret, bool>("manual");
+    private static readonly AccessTools.FieldRef<Turret, Unit> TargetRef = AccessTools.FieldRefAccess<Turret, Unit>("target");
+    private static readonly AccessTools.FieldRef<Turret, Aircraft> AircraftRef = AccessTools.FieldRefAccess<Turret, Aircraft>("aircraft");
+    private static readonly AccessTools.FieldRef<Turret, Unit> AttachedUnitRef = AccessTools.FieldRefAccess<Turret, Unit>("attachedUnit");
+    private static readonly AccessTools.FieldRef<Turret, float> LastVectorSentRef = AccessTools.FieldRefAccess<Turret, float>("lastVectorSent");
+    private static readonly AccessTools.FieldRef<Turret, WeaponStation> CurrentWeaponStationRef = AccessTools.FieldRefAccess<Turret, WeaponStation>("currentWeaponStation");
+    private static readonly AccessTools.FieldRef<Turret, Vector3> ManualVectorRef = AccessTools.FieldRefAccess<Turret, Vector3>("manualVector");
+    private static readonly Func<Turret, Vector3, object> AimTurretMethod = AccessTools.MethodDelegate<Func<Turret, Vector3, object>>(AccessTools.Method(typeof(Turret), "AimTurret"));
+
     [HarmonyPatch(typeof(Turret), "FixedUpdate")]
     private static class FixedUpdatePatch
     {
@@ -16,15 +26,14 @@ internal static class TurretVrCameraPatch
                 return true;
             }
 
-            var turret = Traverse.Create(__instance);
-            if (!turret.Field("manual").GetValue<bool>() ||
-                turret.Field("target").GetValue<Unit>() != null)
+            if (!ManualRef(__instance) ||
+                TargetRef(__instance) != null)
             {
                 return true;
             }
 
-            var aircraft = turret.Field("aircraft").GetValue<Aircraft>();
-            var attachedUnit = turret.Field("attachedUnit").GetValue<Unit>();
+            var aircraft = AircraftRef(__instance);
+            var attachedUnit = AttachedUnitRef(__instance);
             if (aircraft == null ||
                 attachedUnit == null ||
                 !aircraft.LocalSim ||
@@ -41,16 +50,16 @@ internal static class TurretVrCameraPatch
 
             __instance.SetVector(vrCamera.transform.forward);
 
-            var lastVectorSent = turret.Field("lastVectorSent").GetValue<float>();
+            var lastVectorSent = LastVectorSentRef(__instance);
             if (Time.timeSinceLevelLoad - lastVectorSent > 0.20000000298023224)
             {
-                var currentWeaponStation = turret.Field("currentWeaponStation").GetValue<WeaponStation>();
-                var manualVector = turret.Field("manualVector").GetValue<Vector3>();
+                var currentWeaponStation = CurrentWeaponStationRef(__instance);
+                var manualVector = ManualVectorRef(__instance);
                 aircraft.SetTurretVector(currentWeaponStation.Number, manualVector);
-                turret.Field("lastVectorSent").SetValue(Time.timeSinceLevelLoad);
+                LastVectorSentRef(__instance) = Time.timeSinceLevelLoad;
             }
 
-            turret.Method("AimTurret", turret.Field("manualVector").GetValue<Vector3>()).GetValue();
+            AimTurretMethod(__instance, ManualVectorRef(__instance));
             return false;
         }
     }

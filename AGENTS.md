@@ -10,16 +10,19 @@ The mod integrates at multiple levels of the Unity engine:
 
 - **BepInEx plugin** (`NOVR.dll`) — core VR logic: stereo camera, VR UI, input, headset data. Applied via `BepInEx/plugins/NOVR/`.
 - **BepInEx preloader patcher** (`NOVR.Patcher.dll`) — replaces Unity XR assemblies and patches `globalgamemanagers` before the game loads. Applied via `BepInEx/patchers/NOVR/`.
+- **MCP bridge plugin** (`NOVR.McpBridge.dll`) — optional BepInEx plugin that exposes game introspection / scripting tools over HTTP on `localhost:3334` for an external MCP client.
+- **MCP stdio server** (`mcp-bridge-server/server.mjs`) — Node.js companion that speaks the Model Context Protocol over stdio and forwards tool calls to the in-game HTTP server.
 - **XR plugin assemblies** — replacements for `Unity.XR.OpenXR.dll`, `Unity.XR.OpenVR.dll`, `Unity.XR.Management.dll` that load as native Unity plugins.
 
 ### Key technologies
 
-- **C# 10** (.NET Framework 4.8) — main mod code, XR plugins, patcher, installer (Avalonia), build orchestration
+- **C# 10** (.NET Framework 4.8) — main mod code, XR plugins, patcher, MCP bridge, build orchestration
+- **C# / .NET 9** (Avalonia 11.2.6) — GUI installer
 - **C++** (MSVC v143) — XInput proxy DLL (`Uuvr.XInput`)
+- **Node.js** (`@modelcontextprotocol/sdk`) — `mcp-bridge-server` stdio MCP server
 - **BepInEx 5.4.16** — mod loader with Harmony 2.x IL patching (`Harmony.CreateAndPatchAll`)
 - **Mono.Cecil 0.10.4** — assembly rewriting in patcher
 - **AssetsTools.NET 2.0.9** — Unity asset file (`globalgamemanagers`) manipulation
-- **Avalonia 11.2.6** — GUI installer framework
 - **MSBuild** SDK-style projects — build system, invoked via `dotnet build`
 
 ### Dependencies
@@ -28,6 +31,7 @@ The mod integrates at multiple levels of the Unity engine:
 - BepInEx 5.x installed in the game directory (`BepInEx/core/`)
 - .NET SDK 8.0+ (for net48 builds) / 9.0 (for installer projects)
 - Visual Studio 2022 or Build Tools with .NET Framework 4.8 targeting pack
+- Node.js 18+ — only required to run the MCP bridge stdio server locally
 
 ### NuGet feeds (`NuGet.Config`)
 
@@ -49,6 +53,7 @@ Multi-project solution (`NuclearOptionVirtualRealityMod.sln`) with 9 subprojects
 |---|---|---|
 | **NOVR** | net48 | Main mod plugin — core VR logic, camera, UI, configuration, Harmony patches. Output: `BepInEx/plugins/NOVR/NOVR.dll` |
 | **NOVR.Patcher** | net48 | BepInEx preloader patcher — copies XR DLLs to game data, patches `globalgamemanagers`. Output: `BepInEx/patchers/NOVR/NOVR.Patcher.dll` |
+| **NOVR.McpBridge** | net48 | Optional BepInEx plugin — reflection-based tool registry + HTTP server (default port 3334) so an external MCP client can introspect and script the running game. Output: `BepInEx/plugins/NOVR/NOVR.McpBridge.dll` |
 | **NOVR.XR.OpenXR** | net48 | OpenXR plugin implementation (replaces `Unity.XR.OpenXR`). Assembly: `Unity.XR.OpenXR.dll` |
 | **NOVR.XR.OpenVR** | net48 | OpenVR plugin implementation. Assembly: `Unity.XR.OpenVR.dll` |
 | **NOVR.XR.Management** | net48 | XR Management SDK (replaces `Unity.XR.Management`). Assembly: `Unity.XR.Management.dll` |
@@ -57,17 +62,27 @@ Multi-project solution (`NuclearOptionVirtualRealityMod.sln`) with 9 subprojects
 | **NOVR.Build** | net9.0 | Build orchestration project (no source code) — defines MSBuild props/targets, references all projects, creates release ZIP |
 | **Uuvr.XInput** | C++ (v143) | XInput 1.3 proxy DLL — hooks XInput for VR controller input |
 
+> The solution file lists 9 projects. The table above shows 10 rows because `NOVR.Build` is the MSBuild orchestration project (no runtime output) and `Uuvr.XInput` is the C++ sibling — both are part of the workspace but only 9 entries appear in `NuclearOptionVirtualRealityMod.sln`.
+
+### Companion repos / out-of-tree components
+
+| Component | Location | Description |
+|---|---|---|
+| **MCP stdio server** | `mcp-bridge-server/server.mjs` | Node.js Model Context Protocol server. Bridges an MCP-capable client (Claude Code, etc.) to the in-game HTTP server spawned by `NOVR.McpBridge`. Port configurable via `NOVR_MCP_BRIDGE_PORT` env var (default `3334`). |
+
 ### Dependency graph
 
 ```
 NOVR ──> NOVR.XR.OpenXR (private ref)
 NOVR.Patcher ──> NOVR.XR.OpenXR, NOVR.XR.Management (ref only, no output copy)
+NOVR.McpBridge ──> (standalone net48 BepInEx plugin)
 NOVR.XR.OpenXR ──> NOVR.XR.Management
 NOVR.XR.OpenVR ──> NOVR.XR.Management
 NOVR.Build ──> NOVR, NOVR.Patcher (ref only)
 NOVR.Installer ──> (standalone)
 NOVR.Installer.Sfx ──> (standalone)
 Uuvr.XInput ──> (standalone C++ DLL)
+mcp-bridge-server ──> NOVR.McpBridge (runtime HTTP, not build-time)
 ```
 
 ### MSBuild architecture
@@ -92,23 +107,43 @@ Auto-detection passes check `NuclearOption_Data/Managed` exists at each path. Or
 
 ## Key Source Directories
 
-| Area | Location | Files |
+| Area | Location | Notes |
 |---|---|---|
 | **Main plugin entry** | `NOVR/NOVRPlugin.cs` | BepInEx plugin entry, Harmony patch registration |
 | **Core runtime** | `NOVR/Core.cs` | `MonoBehaviour` root — spawns VrCameraManager, NOUIManager; manages physics rate, aircraft tracking |
 | **Mod config** | `NOVR/ModConfiguration.cs` | BepInEx config entries |
-| **VR Camera system** | `NOVR/VrCamera/` | **10 files** — `VrCamera`, `StereoCamera`, `VrCameraManager`, offset management, state patches (`CameraCockpitStatePatch`, `CameraOrbitStatePatch`, `CameraSelectionStatePatch`, `CameraStateManagerMainCameraPatch`, `TurretVrCameraPatch`), `AdditionalCameraData` |
-| **VR UI system** | `NOVR/VrUi/` | `NOUIManager`, `VrUiCursor`, `VrControllerLaser`, `VrControllerInput`, `VrCanvasHitTester`, `UIBehaviorPatcher`, + `UiTranslation/` (2 files: `UITranslationWorldSpace`, `UITranslationBackend`) |
-| **XR togglers** | `NOVR/VrTogglers/` | **4 files** — `VrTogglerManager`, `VrToggler` base, `XrPluginToggler`, `XrPluginOpenXrToggler` |
-| **Harmony patches** | `NOVR/Patches.cs` | All Harmony postfix/transpiler patches for game classes |
-| **Other NOVR** | `NOVR/` | `APIBus`, `NOVRBehaviour`, `NOVRHeadsetData`, `NOVRPoseDriver`, `FollowTarget`, `LayerHelper`, `TypeExtensions`, `UuvrInput`, `KeyboardKey` |
-| **OpenXR plugin** | `NOVR.XR.OpenXR/` | **18 files** — `OpenXRLoader`, `OpenXRLoaderBase`, `OpenXRLoaderNoPreInit`, `OpenXRUtility`, `OpenXRRestarter`, `OpenXRRuntime`, input/ features, composition layers, API layers |
+| **Logging** | `NOVR/NOVRLog.cs` | Buffered log helper used by McpBridge to expose recent log lines to MCP clients |
+| **XR startup diagnostics** | `NOVR/XrStartupDiagnostics.cs`, `NOVR/OpenXrControllerProfileBootstrap.cs` | Runtime sanity checks / profile bootstrap on startup |
+| **VR Camera system** | `NOVR/VrCamera/` | 8 files — `VrCamera`, `StereoCamera`, `VrCameraManager`, `AdditionalCameraData`, plus state patches (`CameraCockpitStatePatch`, `CameraOrbitStatePatch`, `CameraSelectionStatePatch`, `CameraStateManagerMainCameraPatch`, `TurretVrCameraPatch`) |
+| **VR UI system** | `NOVR/VrUi/` | ~45 files — `NOUIManager`, `VrUiCursor`, `VrControllerLaser`, `VrControllerInput`, `VrCanvasHitTester`, `UIBehaviorPatcher`, `OneEuroFilter`, `VrHudProjectionHelper`, plus `Behavior/` (per-screen `NOVR…Behavior.cs` files for HUD/pause/menus/loadout/target designator), `Native/` (native-UI elements: button feedback, panels, layout, main menu shell), and `UiTranslation/` (`UITranslationWorldSpace`, `UITranslationBackend`) |
+| **XR togglers** | `NOVR/VrTogglers/` | 4 files — `VrTogglerManager`, `VrToggler` base, `XrPluginToggler`, `XrPluginOpenXrToggler` |
+| **Harmony patches** | `NOVR/Patches/` | Subfoldered by area — `Gameplay/` (`PilotDismountedPatch`, `StayInCockpitOnEjectPatch`), `HUD/` (`FlightHudPatch`, `AirbaseOverlayPatch`, `FloatingOriginPatch`, `HUDBombingStatePatch`, `HUDBoresightStatePatch`, `HUDTurretCrosshairPatch`, `HUDUnitMarkerPatch`, `JammedMarkerPatch`, `MFDScreenPatch`, `ObjectiveOverlayPatch`, `ThreatItemPatch`, plus `Map/` subdir), `UI/` (`GameplayUIHurtOverlayPatch`, `GameplayUIPauseMenuPatch`, `MissionSelectListItemPatch`, `MissionTagListItemPatch`, `TagFilterListOrderPatch`, `TMP_DropdownPatch`), `VR/` (`OpenXRInteractionProfilePatches`), `Misc/` (`CameraPatch`) |
+| **Other NOVR** | `NOVR/` (root) | `APIBus`, `NOVRBehaviour`, `NOVRHeadsetData`, `NOVRPoseDriver`, `FollowTarget`, `LayerHelper`, `TypeExtensions`, `KeyboardKey` |
+| **MCP bridge plugin** | `NOVR.McpBridge/` | `McpBridgePlugin` (BepInEx entry, `deltawing.novr.mcpbridge`), `McpHttpServer` (HTTP listener on port 3334, endpoints `/health`, `/tools`, `/invoke`), `ToolRegistry` (reflection-based discovery of `[McpTool]` static methods), `McpToolAttribute`/`McpToolResult`, `MainThreadDispatcher` (marshals tool calls onto the Unity main thread), `Logs/`, `Reflection/`, `Tools/` |
+| **MCP stdio server** | `mcp-bridge-server/server.mjs` | Node.js MCP server using `@modelcontextprotocol/sdk`; proxies `tools/list` and `tools/call` to the in-game HTTP bridge. Configure with `NOVR_MCP_BRIDGE_PORT` |
+| **OpenXR plugin** | `NOVR.XR.OpenXR/` | 19 files — `OpenXRLoader`, `OpenXRLoaderBase`, `OpenXRLoaderNoPreInit`, `OpenXRUtility`, `OpenXRRestarter`, `OpenXRRuntime`, input/features, composition layers, API layers, analytics, project validation |
 | **OpenVR plugin** | `NOVR.XR.OpenVR/` | `OpenVRLoader`, `OpenVRSettings`, `OpenVREvents`, `OpenVRHelpers`, `openvr_api.cs` |
 | **XR Management** | `NOVR.XR.Management/` | `XRManagerSettings`, `XRGeneralSettings`, `XRLoader`, `XRLoaderHelper`, `XRConfigurationData`, `XRManagementAnalytics`, `IXRLoaderPreInit` |
 | **Patcher** | `NOVR.Patcher/UuvrPatcher.cs` | Assembly rewriting, `globalgamemanagers` patching, XR DLL copy logic |
 | **Installer** | `NOVR.Installer/` | Avalonia views, view models, services (game detection, download, install) |
 | **XInput DLL** | `Uuvr.XInput/main.cpp` | XInput 1.3 proxy hook |
 | **Build orchestrator** | `NOVR.Build/` | `.props`, `.targets`, `.csproj` only — no C# source |
+| **Agent tooling** | `.agents/`, `.kilo/`, `.deep-diff/`, `reports/`, `plans/`, `docs/` | Kilo / agentic workflow state — see "Agentic Workspace" below |
+
+## Agentic Workspace
+
+This repo is actively used with an agentic coding environment (Kilo). Several top-level directories are agent tooling state and are git-ignored:
+
+- `.agents/` — user-level Kilo agents and skills
+- `.kilo/` — Kilo config, plans, commands
+- `.deep-diff/` — large diff artifacts from prior sessions
+- `reports/` — generated audit / analysis reports (Markdown)
+- `plans/` — design / implementation plans
+- `docs/superpowers/` — generated reference docs
+- `skills-lock.json` — pinned agent skill versions
+- `log-clicks-*.log`, `log-repro-*.log` — manual repro logs from past debugging sessions
+
+When the user references "the agentic environment" or asks about plan/report locations, look here first. None of these directories are part of the shipped mod.
 
 ## Reverse Engineering the Game
 
@@ -197,6 +232,9 @@ dotnet build NuclearOptionVirtualRealityMod.sln -c Debug
 # Build installer only (includes single-file publish step)
 dotnet build NOVR.Installer/NOVR.Installer.csproj -c Release
 
+# Build only the MCP bridge plugin
+dotnet build NOVR.McpBridge/NOVR.McpBridge.csproj -c Debug
+
 # Override game path if auto-detection fails
 dotnet build -p:NuclearOptionGameDir="path\to\Nuclear Option"
 
@@ -208,7 +246,7 @@ $env:NUCLEAR_OPTION_GAME_DIR = "path\to\Nuclear Option"
 
 | Path | Contents |
 |---|---|
-| `build-output/plugins/` | `NOVR.dll`, `Unity.XR.OpenXR.dll`, `Unity.XR.Management.dll`, etc. |
+| `build-output/plugins/` | `NOVR.dll`, `NOVR.McpBridge.dll`, `Unity.XR.OpenXR.dll`, `Unity.XR.Management.dll`, etc. |
 | `build-output/patchers/` | `NOVR.Patcher.dll`, `CopyToGame/` payload |
 | `build-output/game/` | Staged game layout (BepInEx plugin/patcher dirs) — ready for direct copy |
 | `dist/NOVR.zip` | Release ZIP (Release config only) |
@@ -242,6 +280,28 @@ Key behaviors to verify after changes:
 - XR runtime detection (OpenVR vs OpenXR toggling)
 - Headset position tracking and calibration
 - Controller input via XInput proxy
+- If MCP bridge is enabled: `GET http://localhost:3334/health` returns `{"status":"ok"}` and `GET /tools` lists registered tools
+
+### MCP bridge workflow
+
+The MCP bridge is an in-game HTTP server (default port 3334) that exposes reflection-discovered tool methods to an external MCP client:
+
+```powershell
+# After launching the game with NOVR.McpBridge.dll installed:
+curl http://localhost:3334/health     # -> {"status":"ok"}
+curl http://localhost:3334/tools      # -> JSON array of registered tools
+curl -X POST http://localhost:3334/invoke -d '{"tool":"<name>","args":{...}}'
+```
+
+To run the MCP stdio server (Node.js) locally so an MCP-capable client (e.g. Claude Code) can talk to it:
+
+```bash
+cd mcp-bridge-server
+npm install
+node server.mjs   # or: NOVR_MCP_BRIDGE_PORT=3335 node server.mjs
+```
+
+Adding new tools: write a `public static` method in a `static class` under `NOVR.McpBridge/Tools/`, decorate it with `[McpTool("name", "description")]` and parameter `[McpParam]` attributes. The registry discovers it automatically on next launch.
 
 ## Code Style Guidelines
 
@@ -259,17 +319,18 @@ Key behaviors to verify after changes:
 
 ### Project patterns
 
-- **Harmony patching**: use `Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly())` in plugin constructor (see `NOVRPlugin.cs:35`). Place all patches in `Patches.cs`.
+- **Harmony patching**: use `Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly())` in plugin constructor (see `NOVRPlugin.cs`). Patch classes are organized by area under `NOVR/Patches/{Gameplay,HUD,UI,VR,Misc}/` — add new patches to the appropriate subfolder, not a flat file.
 - **XR assembly replacement**: XR plugin projects output with Unity assembly names (`Unity.XR.OpenXR.dll`, `Unity.XR.Management.dll`) so Unity's engine loads them as native plugins.
 - **XR assembly exclusion**: `Unity.XR.*.dll` are excluded from staged game layout and from game managed directory references — they are only produced by the NOVR XR projects.
 - **`NOVRBehaviour`** base class: custom `MonoBehaviour`-like pattern used for NOVR component lifecycle.
 - **`APIBus`**: central event/message bus pattern.
 - **`#if CPP`** preprocessor guard in `NOVRPlugin.cs` for IL2CPP compatibility — normally not active.
 - **Assembly assets**: `NOVR/Assets/MainMenuLogo.png` copied to output via `<Content>` in csproj.
+- **MCP tool discovery**: any `public static` method on a `static` class in `NOVR.McpBridge` annotated with `[McpTool]` is auto-registered at startup. Tool calls run on Unity's main thread via `MainThreadDispatcher`.
 
 ### Dictionary entries (add to spell-checker)
 
-`novr`, `Smushi`, `unityexplorer`, `universelib`, `Uuvr`, `BepInEx`, `Togglers`, `Toggler`, `preloader`
+`novr`, `Smushi`, `unityexplorer`, `universelib`, `Uuvr`, `BepInEx`, `Togglers`, `Toggler`, `preloader`, `McpBridge`, `ToolRegistry`
 
 ## Build and Deployment
 
@@ -305,6 +366,8 @@ The `NOVR.Installer.csproj` `PublishInstallersToDist` target (after Build):
 | `Avalonia.Desktop` | 11.2.6 | NOVR.Installer |
 | `Avalonia.Themes.Fluent` | 11.2.6 | NOVR.Installer |
 
+`NOVR.McpBridge` uses an in-tree `Valve.Newtonsoft.Json.dll` from `lib/` (not a NuGet package). `mcp-bridge-server` uses npm packages (`@modelcontextprotocol/sdk`) — install with `npm install` in that directory.
+
 ## PR Guidelines
 
 - Title format: `[Area] Brief description`
@@ -324,6 +387,8 @@ The `NOVR.Installer.csproj` `PublishInstallersToDist` target (after Build):
 | **Mod not loaded** | Check `BepInEx/LogOutput.log` for exceptions; verify `NOVR.dll` exists in `BepInEx/plugins/NOVR/` |
 | **`Unity.XR.*.dll` not found** | These are excluded from staged layout — they are produced by NOVR XR projects and copied by the patcher's `CopyXrAssembliesToPatcherPayload` target |
 | **Camera not stereoscopic** | Check `VrCamera/VrCamera.cs` and the state patches — each camera state (cockpit, orbit, selection, turret) has its own patch file |
+| **MCP bridge unreachable** | Confirm `NOVR.McpBridge.dll` is in `BepInEx/plugins/NOVR/`; check `BepInEx/LogOutput.log` for `MCP bridge started on …` line; verify firewall allows `localhost:3334` |
+| **`/tools` returns 0 tools** | New `[McpTool]` methods must be `public static` on a `static class` inside `NOVR.McpBridge/` to be discovered |
 
 ## Important Notes
 
@@ -335,3 +400,4 @@ The `NOVR.Installer.csproj` `PublishInstallersToDist` target (after Build):
 - `NOVR.Patcher` references `NOVR.XR.Management` and `NOVR.XR.OpenXR` with `ReferenceOutputAssembly="false"` — used only for assembly metadata during patching
 - The `DeployToGame` target is gated on `NuclearOptionGameDirResolved != NUCLEAR_OPTION_NOT_FOUND`
 - `Version.txt` is written by the installer (not the build) to track installed version
+- MCP bridge endpoints are unauthenticated and bind to `localhost` only — do not expose port 3334 beyond the local machine

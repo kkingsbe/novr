@@ -1,4 +1,3 @@
-using System.Reflection;
 using HarmonyLib;
 using NOVR.PatchHelper;
 using NOVR.VrUi.HarmonyPatches;
@@ -9,13 +8,13 @@ namespace NOVR.Patches.HUD;
 
 internal static class ObjectiveOverlayPatch
 {
-    private static readonly FieldInfo ObjectivePointerField = AccessTools.Field(typeof(ObjectiveOverlay), "objectivePointer");
-    private static readonly FieldInfo ObjectiveDotField = AccessTools.Field(typeof(ObjectiveOverlay), "objectiveDot");
-    private static readonly FieldInfo SizeIndicatorField = AccessTools.Field(typeof(ObjectiveOverlay), "sizeIndicator");
-    private static readonly FieldInfo ObjectiveInfoField = AccessTools.Field(typeof(ObjectiveOverlay), "objectiveInfo");
-    private static readonly FieldInfo PointerTailField = AccessTools.Field(typeof(ObjectiveOverlay), "pointerTail");
-    private static readonly FieldInfo BaseColorField = AccessTools.Field(typeof(ObjectiveOverlay), "baseColor");
-    private static readonly FieldInfo HiddenField = AccessTools.Field(typeof(ObjectiveOverlay), "hidden");
+    private static readonly AccessTools.FieldRef<ObjectiveOverlay, Image> ObjectivePointerRef = AccessTools.FieldRefAccess<ObjectiveOverlay, Image>("objectivePointer");
+    private static readonly AccessTools.FieldRef<ObjectiveOverlay, Image> ObjectiveDotRef = AccessTools.FieldRefAccess<ObjectiveOverlay, Image>("objectiveDot");
+    private static readonly AccessTools.FieldRef<ObjectiveOverlay, Image> SizeIndicatorRef = AccessTools.FieldRefAccess<ObjectiveOverlay, Image>("sizeIndicator");
+    private static readonly AccessTools.FieldRef<ObjectiveOverlay, Text> ObjectiveInfoRef = AccessTools.FieldRefAccess<ObjectiveOverlay, Text>("objectiveInfo");
+    private static readonly AccessTools.FieldRef<ObjectiveOverlay, Transform> PointerTailRef = AccessTools.FieldRefAccess<ObjectiveOverlay, Transform>("pointerTail");
+    private static readonly AccessTools.FieldRef<ObjectiveOverlay, Color> BaseColorRef = AccessTools.FieldRefAccess<ObjectiveOverlay, Color>("baseColor");
+    private static readonly AccessTools.FieldRef<ObjectiveOverlay, bool> HiddenRef = AccessTools.FieldRefAccess<ObjectiveOverlay, bool>("hidden");
 
     [PatchPrefix(typeof(ObjectiveOverlay), nameof(ObjectiveOverlay.UpdateOverlay))]
     private static bool UpdateOverlay(ObjectiveOverlay __instance, MissionPosition.PositionResult result)
@@ -25,17 +24,17 @@ internal static class ObjectiveOverlayPatch
         if (mainCamera == null || cockpitHudCamera == null)
             return true;
 
-        var objectivePointer = (Image)ObjectivePointerField.GetValue(__instance);
-        var objectiveDot = (Image)ObjectiveDotField.GetValue(__instance);
-        var sizeIndicator = (Image)SizeIndicatorField.GetValue(__instance);
-        var objectiveInfo = (Text)ObjectiveInfoField.GetValue(__instance);
-        var pointerTail = (Transform)PointerTailField.GetValue(__instance);
-        var baseColor = (Color)BaseColorField.GetValue(__instance);
+        var objectivePointer = ObjectivePointerRef(__instance);
+        var objectiveDot = ObjectiveDotRef(__instance);
+        var sizeIndicator = SizeIndicatorRef(__instance);
+        var objectiveInfo = ObjectiveInfoRef(__instance);
+        var pointerTail = PointerTailRef(__instance);
+        var baseColor = BaseColorRef(__instance);
 
         if (objectivePointer == null || objectiveDot == null || sizeIndicator == null || objectiveInfo == null || pointerTail == null)
             return true;
 
-        HiddenField.SetValue(__instance, false);
+        HiddenRef(__instance) = false;
         objectivePointer.enabled = true;
         objectiveInfo.enabled = true;
 

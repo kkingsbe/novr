@@ -103,6 +103,7 @@ public class VrUiCursor: NOVRBehaviour
 
     // Direct pointer event state
     private PointerEventData? _pointerEventData;
+    private readonly List<RaycastResult> _pointerRaycastResults = new();
     private GameObject? _hovered;
     private GameObject? _pointerPress;
     private bool _wasLeftDown;
@@ -374,7 +375,8 @@ public class VrUiCursor: NOVRBehaviour
             ped.pressPosition = screenPoint;
         }
 
-        var results = new List<RaycastResult>();
+        var results = _pointerRaycastResults;
+        results.Clear();
         raycaster.Raycast(ped, results);
 
         // Get the event root (the ancestor that has Selectable or IPointerClickHandler)
