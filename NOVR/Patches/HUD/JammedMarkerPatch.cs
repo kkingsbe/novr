@@ -8,22 +8,29 @@ namespace NOVR.Patches.HUD;
 
 internal static class JammedMarkerPatch
 {
-    private static readonly FieldInfo VectorLineField = AccessTools.Field(typeof(JammedMarker), "vectorLine");
-    private static readonly FieldInfo VectorLineImageField = AccessTools.Field(typeof(JammedMarker), "vectorLineImage");
-    private static readonly FieldInfo RadarField = AccessTools.Field(typeof(JammedMarker), "radar");
-    private static readonly FieldInfo UnitField = AccessTools.Field(typeof(JammedMarker), "unit");
-    private static readonly FieldInfo JammedByField = AccessTools.Field(typeof(JammedMarker), "jammedBy");
-    private static readonly FieldInfo MapIconField = AccessTools.Field(typeof(JammedMarker), "mapIcon");
-    private static readonly FieldInfo JammedByIconField = AccessTools.Field(typeof(JammedMarker), "jammedByIcon");
+    private static readonly AccessTools.FieldRef<JammedMarker, GameObject> VectorLineField =
+        AccessTools.FieldRefAccess<JammedMarker, GameObject>("vectorLine");
+    private static readonly AccessTools.FieldRef<JammedMarker, Image> VectorLineImageField =
+        AccessTools.FieldRefAccess<JammedMarker, Image>("vectorLineImage");
+    private static readonly AccessTools.FieldRef<JammedMarker, Radar> RadarField =
+        AccessTools.FieldRefAccess<JammedMarker, Radar>("radar");
+    private static readonly AccessTools.FieldRef<JammedMarker, Unit> UnitField =
+        AccessTools.FieldRefAccess<JammedMarker, Unit>("unit");
+    private static readonly AccessTools.FieldRef<JammedMarker, Unit> JammedByField =
+        AccessTools.FieldRefAccess<JammedMarker, Unit>("jammedBy");
+    private static readonly AccessTools.FieldRef<JammedMarker, UnitMapIcon> MapIconField =
+        AccessTools.FieldRefAccess<JammedMarker, UnitMapIcon>("mapIcon");
+    private static readonly AccessTools.FieldRef<JammedMarker, UnitMapIcon> JammedByIconField =
+        AccessTools.FieldRefAccess<JammedMarker, UnitMapIcon>("jammedByIcon");
 
     
     [PatchPrefix(typeof(JammedMarker), "Update")]
     private static bool Update(JammedMarker __instance)
     {
-        var unit = (Unit)UnitField.GetValue(__instance);
-        var mapIcon = (UnitMapIcon)MapIconField.GetValue(__instance);
-        var radar = (Radar)RadarField.GetValue(__instance);
-        var jammedBy = (Unit)JammedByField.GetValue(__instance);
+        var unit = UnitField(__instance);
+        var mapIcon = MapIconField(__instance);
+        var radar = RadarField(__instance);
+        var jammedBy = JammedByField(__instance);
         if (unit == null || mapIcon == null || unit.disabled || radar == null || jammedBy == null || jammedBy.disabled || !radar.IsJammed())
             return true;
 
@@ -34,9 +41,9 @@ internal static class JammedMarkerPatch
         __instance.transform.localPosition = jammedLocalPosition;
         __instance.transform.localScale = Vector3.one / map.mapImage.transform.localScale.x;
 
-        var vectorLineImage = (Image)VectorLineImageField.GetValue(__instance);
-        var vectorLine = (GameObject)VectorLineField.GetValue(__instance);
-        var jammedByIcon = (UnitMapIcon)JammedByIconField.GetValue(__instance);
+        var vectorLineImage = VectorLineImageField(__instance);
+        var vectorLine = VectorLineField(__instance);
+        var jammedByIcon = JammedByIconField(__instance);
         if (jammedByIcon == null || vectorLineImage == null || vectorLine == null)
         {
             if (vectorLineImage != null)

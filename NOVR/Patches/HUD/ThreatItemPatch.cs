@@ -17,14 +17,22 @@ internal static class ThreatItemPatch
     private const float NotchIndicatorFirstGapOffset = 200.0f;
     private const float NotchIndicatorGapOffsetStep = 25.0f;
     private const float NotchIndicatorGapOffsetLerpSpeed = 8.0f;
-    private static readonly FieldInfo MissileField = AccessTools.Field(typeof(ThreatItem), "missile");
-    private static readonly FieldInfo NotchLineField = AccessTools.Field(typeof(ThreatItem), "notchLine");
-    private static readonly FieldInfo NotchIndicatorField = AccessTools.Field(typeof(ThreatItem), "notchIndicator");
-    private static readonly FieldInfo NotchIndicatorBoxField = AccessTools.Field(typeof(ThreatItem), "notchIndicatorBox");
-    private static readonly FieldInfo NotchIndicatorLabelField = AccessTools.Field(typeof(ThreatItem), "notchIndicatorLabel");
-    private static readonly FieldInfo PlayerAircraftIconTransformField = AccessTools.Field(typeof(ThreatItem), "playerAircraftIconTransform");
-    private static readonly FieldInfo MissileIconTransformField = AccessTools.Field(typeof(ThreatItem), "missileIconTransform");
-    private static readonly FieldInfo VectorLineField = AccessTools.Field(typeof(ThreatItem), "vectorLine");
+    private static readonly AccessTools.FieldRef<ThreatItem, Missile> MissileField =
+        AccessTools.FieldRefAccess<ThreatItem, Missile>("missile");
+    private static readonly AccessTools.FieldRef<ThreatItem, GameObject> NotchLineField =
+        AccessTools.FieldRefAccess<ThreatItem, GameObject>("notchLine");
+    private static readonly AccessTools.FieldRef<ThreatItem, GameObject> NotchIndicatorField =
+        AccessTools.FieldRefAccess<ThreatItem, GameObject>("notchIndicator");
+    private static readonly AccessTools.FieldRef<ThreatItem, Image> NotchIndicatorBoxField =
+        AccessTools.FieldRefAccess<ThreatItem, Image>("notchIndicatorBox");
+    private static readonly AccessTools.FieldRef<ThreatItem, Text> NotchIndicatorLabelField =
+        AccessTools.FieldRefAccess<ThreatItem, Text>("notchIndicatorLabel");
+    private static readonly AccessTools.FieldRef<ThreatItem, Transform> PlayerAircraftIconTransformField =
+        AccessTools.FieldRefAccess<ThreatItem, Transform>("playerAircraftIconTransform");
+    private static readonly AccessTools.FieldRef<ThreatItem, Transform> MissileIconTransformField =
+        AccessTools.FieldRefAccess<ThreatItem, Transform>("missileIconTransform");
+    private static readonly AccessTools.FieldRef<ThreatItem, GameObject> VectorLineField =
+        AccessTools.FieldRefAccess<ThreatItem, GameObject>("vectorLine");
     private static readonly Dictionary<ThreatItem, float> SmoothedGapOffsets = new();
     private static readonly Dictionary<ThreatItem, int> ThreatSlots = new();
     private static readonly Dictionary<Image, LineImages> LineImageCache = new();
@@ -35,8 +43,8 @@ internal static class ThreatItemPatch
     [PatchPrefix(typeof(ThreatItem), "AlignNotchLine")]
     private static bool AlignNotchLine(ThreatItem __instance)
     {
-        var notchLine = (GameObject)NotchLineField.GetValue(__instance);
-        var playerAircraftIconTransform = (Transform)PlayerAircraftIconTransformField.GetValue(__instance);
+        var notchLine = NotchLineField(__instance);
+        var playerAircraftIconTransform = PlayerAircraftIconTransformField(__instance);
         if (notchLine == null || playerAircraftIconTransform == null || !TryGetNotchDirection(__instance, out var notchDirection))
             return false;
 
@@ -57,11 +65,11 @@ internal static class ThreatItemPatch
     [PatchPrefix(typeof(ThreatItem), "AlignNotchIndicator")]
     private static bool AlignNotchIndicator(ThreatItem __instance)
     {
-        var notchIndicator = (GameObject)NotchIndicatorField.GetValue(__instance);
+        var notchIndicator = NotchIndicatorField(__instance);
         if (notchIndicator == null || !TryGetNotchDirection(__instance, out var notchDirection))
             return false;
 
-        var missile = (Missile)MissileField.GetValue(__instance);
+        var missile = MissileField(__instance);
         var aircraft = SceneSingleton<CombatHUD>.i.aircraft;
         var worldPosition = aircraft.GlobalPosition().ToLocalPosition() + notchDirection * NotchIndicatorDistance;
         var mainCamera = APIBus.MainCamera;
@@ -93,13 +101,13 @@ internal static class ThreatItemPatch
         
         var gapOffset = GetSmoothedGapOffset(__instance);
 
-        var notchIndicatorBox = (Image)NotchIndicatorBoxField.GetValue(__instance);
+        var notchIndicatorBox = NotchIndicatorBoxField(__instance);
         if (notchIndicatorBox != null)
         {
             ConfigureNotchIndicatorLines(notchIndicatorBox, color, gapOffset);
         }
 
-        var notchIndicatorLabel = (Text)NotchIndicatorLabelField.GetValue(__instance);
+        var notchIndicatorLabel = NotchIndicatorLabelField(__instance);
         if (notchIndicatorLabel != null)
         {
             notchIndicatorLabel.text = $"[{missile.GetSeekerType()}] {UnitConverter.DistanceReading(distance)}";
@@ -113,9 +121,9 @@ internal static class ThreatItemPatch
     [PatchPrefix(typeof(ThreatItem), "AlignVectorLine")]
     private static bool AlignVectorLine(ThreatItem __instance)
     {
-        var missileIconTransform = (Transform)MissileIconTransformField.GetValue(__instance);
-        var playerAircraftIconTransform = (Transform)PlayerAircraftIconTransformField.GetValue(__instance);
-        var vectorLine = (GameObject)VectorLineField.GetValue(__instance);
+        var missileIconTransform = MissileIconTransformField(__instance);
+        var playerAircraftIconTransform = PlayerAircraftIconTransformField(__instance);
+        var vectorLine = VectorLineField(__instance);
         if (missileIconTransform == null || playerAircraftIconTransform == null || vectorLine == null)
             return false;
 
@@ -140,7 +148,7 @@ internal static class ThreatItemPatch
     {
         notchDirection = Vector3.zero;
 
-        var missile = (Missile)MissileField.GetValue(threatItem);
+        var missile = MissileField(threatItem);
         var aircraft = SceneSingleton<CombatHUD>.i.aircraft;
         var mainCamera = APIBus.MainCamera;
         if (missile == null || aircraft == null || mainCamera == null)

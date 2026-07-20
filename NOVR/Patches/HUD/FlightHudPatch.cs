@@ -9,10 +9,12 @@ internal static class FlightHudPatch
 {
     private const float HudDistance = 1000.0f;
     private const float VelocityVectorProjectionDistance = 1000.0f;
-    private static readonly FieldInfo CockpitTransformField = AccessTools.Field(typeof(global::FlightHud), "cockpitTransform");
-    private static readonly FieldInfo CockpitRbField = AccessTools.Field(typeof(global::FlightHud), "cockpitRB");
+    private static readonly AccessTools.FieldRef<FlightHud, Transform> CockpitTransformField =
+        AccessTools.FieldRefAccess<FlightHud, Transform>("cockpitTransform");
+    private static readonly AccessTools.FieldRef<FlightHud, Rigidbody> CockpitRbField =
+        AccessTools.FieldRefAccess<FlightHud, Rigidbody>("cockpitRB");
 
-    
+
     [PatchPostfix(typeof(FlightHud), "Update")]
     private static void Update(FlightHud __instance)
     {
@@ -20,8 +22,8 @@ internal static class FlightHudPatch
         if (velocityVector == null)
             return;
 
-        var cockpitTransform = (Transform)CockpitTransformField.GetValue(__instance);
-        var cockpitRb = (Rigidbody)CockpitRbField.GetValue(__instance);
+        var cockpitTransform = CockpitTransformField(__instance);
+        var cockpitRb = CockpitRbField(__instance);
         if (cockpitTransform == null || cockpitRb == null)
             return;
 

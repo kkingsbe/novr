@@ -19,6 +19,9 @@ public class NOUIManager : NOVRBehaviour
     private Camera? _cockpitHudCamera;
     private Camera? _clippedHudCamera;
     private GameObject? _smoothedForwardReference;
+    private Coroutine? _stackEnforcementCoroutine;
+    private const float StackEnforcementPollDurationSeconds = 2f;
+    private const float StackEnforcementPollIntervalSeconds = 0.25f;
 
     public static NOUIManager I { get; private set; }
 
@@ -74,6 +77,7 @@ public class NOUIManager : NOVRBehaviour
         Create<VrControllerLaser>(transform);
         Create<NativeVrUiRoot>(transform);
         ConfigureUiCameras();
+        StartStackEnforcementPoll();
     }
 
     protected override void OnSettingChanged()
@@ -82,11 +86,11 @@ public class NOUIManager : NOVRBehaviour
         ConfigureUiCameras();
         if (_smoothedForwardReference != null)
             ReparentSmoothedReference(_smoothedForwardReference);
+        StartStackEnforcementPoll();
     }
 
     private void Update()
     {
-        ConfigureUiCameras();
         UpdateSmoothedPosition();
     }
 
@@ -165,6 +169,25 @@ public class NOUIManager : NOVRBehaviour
         {
             cameraStack.Add(CockpitHudCamera);
         }
+
+        StartStackEnforcementPoll();
+    }
+
+    private void StartStackEnforcementPoll()
+    {
+        if (_stackEnforcementCoroutine != null) StopCoroutine(_stackEnforcementCoroutine);
+        _stackEnforcementCoroutine = StartCoroutine(EnforceStackAfterChange());
+    }
+
+    private System.Collections.IEnumerator EnforceStackAfterChange()
+    {
+        var deadline = Time.unscaledTime + StackEnforcementPollDurationSeconds;
+        while (Time.unscaledTime < deadline)
+        {
+            EnforceClippedCameraStackPosition();
+            yield return new WaitForSecondsRealtime(StackEnforcementPollIntervalSeconds);
+        }
+        _stackEnforcementCoroutine = null;
     }
 
     private void ConfigureUiCameras()

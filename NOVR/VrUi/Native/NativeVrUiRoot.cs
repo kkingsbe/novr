@@ -4,6 +4,7 @@ using NuclearOption.Networking;
 using NuclearOption.Networking.Lobbies;
 using NuclearOption.Workshop;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace NOVR.VrUi.Native;
@@ -75,6 +76,21 @@ public class NativeVrUiRoot : NOVRBehaviour
     public VrPointerState PointerState => _pointerState;
     public GameObject? OriginalMainCanvas => _mainCanvas;
     public NativeGameActionAdapter Actions => _actions;
+
+    private void OnEnable()
+    {
+        SceneManager.sceneLoaded += OnSceneLoadedForMainMenuScan;
+    }
+
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoadedForMainMenuScan;
+    }
+
+    private void OnSceneLoadedForMainMenuScan(Scene scene, LoadSceneMode mode)
+    {
+        _nextMainMenuScanTime = 0f;
+    }
 
     private void OnDestroy()
     {
@@ -673,16 +689,27 @@ public class NativeVrUiRoot : NOVRBehaviour
 
     private static GameObject? FindMainCanvas()
     {
-        var gameObjects = Resources.FindObjectsOfTypeAll<GameObject>();
-        for (var index = 0; index < gameObjects.Length; index++)
+        var scene = SceneManager.GetActiveScene();
+        var roots = scene.GetRootGameObjects();
+        for (var i = 0; i < roots.Length; i++)
         {
-            var gameObject = gameObjects[index];
-            if (gameObject.name == "MainCanvas" && gameObject.GetComponent<Canvas>() != null)
-            {
-                return gameObject;
-            }
+            var found = FindMainCanvasRecursive(roots[i]);
+            if (found != null) return found;
         }
+        return null;
+    }
 
+    private static GameObject? FindMainCanvasRecursive(GameObject parent)
+    {
+        if (parent.name == "MainCanvas" && parent.GetComponent<Canvas>() != null)
+            return parent;
+
+        var t = parent.transform;
+        for (var i = 0; i < t.childCount; i++)
+        {
+            var found = FindMainCanvasRecursive(t.GetChild(i).gameObject);
+            if (found != null) return found;
+        }
         return null;
     }
 

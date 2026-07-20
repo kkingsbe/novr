@@ -186,7 +186,7 @@ namespace NOVR.VrUi
             if (_xrRig != null && Time.frameCount - _rigSearchFrame <= 120)
                 return;
             _rigSearchFrame = Time.frameCount;
-            var cam = Camera.main;
+            var cam = APIBus.MainCamera;
             if (cam != null)
                 _xrRig = cam.transform.parent ?? cam.transform;
         }

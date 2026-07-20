@@ -77,6 +77,10 @@ public class VrUiCursor: NOVRBehaviour
     private string _lastCanvasName = "";
     private readonly System.Collections.Generic.List<System.Action> _deferredActions = new();
 
+    private global::MapIcon[] _cachedMapIcons = System.Array.Empty<global::MapIcon>();
+    private float _mapIconCacheTime = -100f;
+    private const float MapIconCacheLifetimeSeconds = 1f;
+
     // Controller input mode
     private bool _controllerModeActive;
     private bool _triggerIsPressed;
@@ -859,7 +863,12 @@ public class VrUiCursor: NOVRBehaviour
             : 0.05f;
         float maxRadiusSqr = maxRadius * maxRadius;
 
-        var icons = UnityEngine.Object.FindObjectsOfType<global::MapIcon>();
+        if (Time.unscaledTime - _mapIconCacheTime > MapIconCacheLifetimeSeconds)
+        {
+            _cachedMapIcons = UnityEngine.Object.FindObjectsOfType<global::MapIcon>();
+            _mapIconCacheTime = Time.unscaledTime;
+        }
+        var icons = _cachedMapIcons;
         global::MapIcon? closest = null;
         float closestSqr = float.MaxValue;
 

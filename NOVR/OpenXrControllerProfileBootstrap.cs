@@ -16,6 +16,11 @@ internal static class OpenXrControllerProfileBootstrap
     private static readonly FieldInfo? FeaturesField = typeof(OpenXRSettings)
         .GetField("features", BindingFlags.Instance | BindingFlags.NonPublic);
 
+    private static readonly FieldInfo? FeaturePriorityField = typeof(OpenXRFeature)
+        .GetField("priority", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo? FeatureNameUiField = typeof(OpenXRFeature)
+        .GetField("nameUi", BindingFlags.Instance | BindingFlags.NonPublic);
+
     private static readonly object _featuresLock = new();
     private static bool _hasEnsured;
 
@@ -218,13 +223,15 @@ internal static class OpenXrControllerProfileBootstrap
 
     private static int ReadIntFeatureField(OpenXRFeature feature, string fieldName)
     {
-        var field = typeof(OpenXRFeature).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        var field = fieldName == "priority" ? FeaturePriorityField
+            : typeof(OpenXRFeature).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         return field?.GetValue(feature) is int value ? value : 0;
     }
 
     private static string ReadStringFeatureField(OpenXRFeature feature, string fieldName)
     {
-        var field = typeof(OpenXRFeature).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        var field = fieldName == "nameUi" ? FeatureNameUiField
+            : typeof(OpenXRFeature).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         return field?.GetValue(feature) as string ?? "";
     }
 
