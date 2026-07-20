@@ -39,8 +39,6 @@ public class UIBehaviorPatcher : NOVRBehaviour
     private static Dictionary<Component, Type> _toPatch_component = new();
     private static Dictionary<string, List<Type>> _toPatch_name = new();
     private static List<GameObject> _toReactivate = new();
-    private static GameObject[] _cachedAllObjects = System.Array.Empty<GameObject>();
-    private static bool _cacheDirty = true;
 
 
     static UIBehaviorPatcher()
@@ -50,14 +48,15 @@ public class UIBehaviorPatcher : NOVRBehaviour
 
     private void Awake()
     {
-        UnityEngine.SceneManagement.SceneManager.sceneLoaded += (_, _) => { _cacheDirty = true; };
-        UnityEngine.SceneManagement.SceneManager.sceneUnloaded += (_) => { _cacheDirty = true; };
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += (_, _) => { PatchByName(); };
+        UnityEngine.SceneManagement.SceneManager.sceneUnloaded += (_) => { };
     }
 
     private static void SceneLoaded(Scene arg0, LoadSceneMode arg1)
     {
         Debug.Log("UIBehaviorPatcher: Scene loaded");
         foreach (var kvp in _sceneLoadPatchMap) _toPatch_name[kvp.Key] = new List<Type>(kvp.Value);
+        PatchByName();
     }
 
 
@@ -134,25 +133,40 @@ public class UIBehaviorPatcher : NOVRBehaviour
 
         if (_toPatch_name.Count > 0)
         {
-            if (_cacheDirty)
-            {
-                _cachedAllObjects = Resources.FindObjectsOfTypeAll(typeof(GameObject)) as GameObject[] ?? System.Array.Empty<GameObject>();
-                _cacheDirty = false;
-            }
+            PatchByName();
+        }
+    }
 
-            foreach (var go in _cachedAllObjects)
+    private static void PatchByName()
+    {
+        if (_toPatch_name.Count == 0) return;
+
+        var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        var roots = scene.GetRootGameObjects();
+        for (var i = 0; i < roots.Length; i++)
+        {
+            PatchByNameRecursive(roots[i]);
+        }
+        _toPatch_name.Clear();
+    }
+
+    private static void PatchByNameRecursive(GameObject go)
+    {
+        if (go == null) return;
+
+        if (_toPatch_name.TryGetValue(go.name, out var toAddList))
+        {
+            foreach (var toAdd in toAddList)
             {
-                var name = go.name;
-                if (_toPatch_name.TryGetValue(name, out var toAddList))
-                {
-                    foreach (var toAdd in toAddList)
-                    {
-                        Debug.Log($"UIBehaviorPatcher: Adding {toAdd.Name} to {name} (name patch)");
-                        if (!go.TryGetComponent(toAdd, out Component _)) AddAndBounceIfActive(go, toAdd);
-                    }
-                }
+                Debug.Log($"UIBehaviorPatcher: Adding {toAdd.Name} to {go.name} (name patch)");
+                if (!go.TryGetComponent(toAdd, out Component _)) AddAndBounceIfActive(go, toAdd);
             }
-            _toPatch_name.Clear();
+        }
+
+        var t = go.transform;
+        for (var i = 0; i < t.childCount; i++)
+        {
+            PatchByNameRecursive(t.GetChild(i).gameObject);
         }
     }
     

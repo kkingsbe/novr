@@ -33,16 +33,6 @@ public class NOVRPoseDriver: NOVRBehaviour
         UpdateTransform();
     }
 
-    private void Update()
-    {
-        UpdateTransform();
-    }
-
-    private void LateUpdate()
-    {
-        UpdateTransform();
-    }
-
     private void UpdateTransform()
     {
         transform.localRotation = NOVRHeadsetData.Rotation;

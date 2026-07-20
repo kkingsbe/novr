@@ -15,6 +15,7 @@ namespace NOVR;
 public class Core : MonoBehaviour
 {
     private static bool _isApplicationQuitting;
+    private static readonly Regex NonAlphanumRegex = new("[^a-zA-Z0-9_]", RegexOptions.Compiled);
     
     private NOVRHeadsetData? _headsetData;
     private NOUIManager? _vrUi;
@@ -133,7 +134,7 @@ if (NOVRPlugin.LogSource != null)
     private static string ResolveAircraftId(Aircraft aircraft)
     {
         if (aircraft == null || aircraft.definition == null) return null;
-        return Regex.Replace(aircraft.definition.name, "[^a-zA-Z0-9_]", "_");
+        return NonAlphanumRegex.Replace(aircraft.definition.name, "_");
     }
 
 }

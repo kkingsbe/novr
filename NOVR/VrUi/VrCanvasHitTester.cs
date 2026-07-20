@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using System;
 using System.Collections.Generic;
 
 namespace NOVR.VrUi
@@ -28,6 +29,9 @@ namespace NOVR.VrUi
         private static readonly List<Canvas> _registeredCanvases = new();
         private static readonly List<RaycastResult> _graphicResults = new();
         private static readonly List<(float distance, Canvas canvas, Vector3 worldPoint, Vector2 localPoint)> _candidateBuffer = new();
+        private static readonly Dictionary<Canvas, GraphicRaycaster> _raycasterByCanvas = new();
+        private static readonly Comparison<(float distance, Canvas canvas, Vector3 worldPoint, Vector2 localPoint)> CandidateDistanceComparison =
+            (a, b) => a.distance.CompareTo(b.distance);
         private static PointerEventData? _scratchPointerEventData;
 
         private static PointerEventData GetScratchPointerEventData()
@@ -50,12 +54,16 @@ namespace NOVR.VrUi
         public static void Register(Canvas canvas)
         {
             if (canvas != null && !_registeredCanvases.Contains(canvas))
+            {
                 _registeredCanvases.Add(canvas);
+                _raycasterByCanvas[canvas] = ResolveRaycaster(canvas);
+            }
         }
 
         public static void Unregister(Canvas canvas)
         {
             _registeredCanvases.Remove(canvas);
+            _raycasterByCanvas.Remove(canvas);
         }
 
         /// <summary>
@@ -118,7 +126,11 @@ namespace NOVR.VrUi
             Vector3 localPos = rt.InverseTransformPoint(worldPoint);
             Vector2 localPoint = new Vector2(localPos.x, localPos.y);
 
-            var raycaster = canvas.GetComponent<GraphicRaycaster>();
+            if (!_raycasterByCanvas.TryGetValue(canvas, out var raycaster))
+            {
+                raycaster = ResolveRaycaster(canvas);
+                _raycasterByCanvas[canvas] = raycaster;
+            }
             bool hasGraphic = false;
             if (raycaster != null)
             {
@@ -181,7 +193,7 @@ namespace NOVR.VrUi
 
             if (candidates.Count == 0) return false;
 
-            candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
+            candidates.Sort(CandidateDistanceComparison);
 
             foreach (var (distance, canvas, worldPoint, localPoint) in candidates)
             {
@@ -215,6 +227,17 @@ namespace NOVR.VrUi
                     return true;
             }
             return false;
+        }
+
+        private static GraphicRaycaster ResolveRaycaster(Canvas canvas)
+        {
+            var raycaster = canvas.GetComponent<GraphicRaycaster>();
+            if (raycaster != null) return raycaster;
+
+            var root = canvas.rootCanvas;
+            if (root != null && root != canvas)
+                raycaster = root.GetComponent<GraphicRaycaster>();
+            return raycaster;
         }
 
         public static bool RaycastCanvasPlanes(Ray ray, out CanvasHit hit, bool acceptBackFace = false)
@@ -253,7 +276,7 @@ namespace NOVR.VrUi
 
             if (candidates.Count == 0) return false;
 
-            candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
+            candidates.Sort(CandidateDistanceComparison);
 
             // 1. Walk closest-first; skip planes with no graphic so the cursor passes
             //    through to interactive content behind.
@@ -301,14 +324,10 @@ namespace NOVR.VrUi
 
         private static bool HasGraphicAtPoint(Canvas canvas, Vector2 localPoint)
         {
-            var raycaster = canvas.GetComponent<GraphicRaycaster>();
-            if (raycaster == null)
+            if (!_raycasterByCanvas.TryGetValue(canvas, out var raycaster))
             {
-                // Nested canvases may not have their own GraphicRaycaster —
-                // the root canvas's raycaster covers the entire hierarchy.
-                var root = canvas.rootCanvas;
-                if (root != null && root != canvas)
-                    raycaster = root.GetComponent<GraphicRaycaster>();
+                raycaster = ResolveRaycaster(canvas);
+                _raycasterByCanvas[canvas] = raycaster;
             }
             if (raycaster == null) return false;
 
@@ -346,6 +365,7 @@ namespace NOVR.VrUi
         public static void Clear()
         {
             _registeredCanvases.Clear();
+            _raycasterByCanvas.Clear();
         }
 
         public static void DrawCanvasBounds(Canvas canvas, Color color)

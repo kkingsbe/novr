@@ -15,8 +15,10 @@ public class APIBus : MonoBehaviour
     #endregion
     
     
-    public static Action<Camera?, Camera?> OnMainCameraChanged;       
-    private static Camera? _previousMainCamera; 
+    public static Action<Camera?, Camera?> OnMainCameraChanged;
+    private static Camera? _previousMainCamera;
+    private static Camera? _cachedMainCamera;
+    private static int _cachedMainCameraFrame = -1; 
     
     
 
@@ -31,14 +33,17 @@ public class APIBus : MonoBehaviour
     {
         if (!CheckExtraDispatchers()) return;
 
-
-        var newMainCamera = Camera.main;                                                         
-        if (newMainCamera != _previousMainCamera)                                                
-        {                                                                                        
-            OnMainCameraChanged(_previousMainCamera, newMainCamera);                             
-            _previousMainCamera = newMainCamera;                                                 
-        }                                                                                        
-        
+        if (Time.frameCount != _cachedMainCameraFrame)
+        {
+            _cachedMainCameraFrame = Time.frameCount;
+            _cachedMainCamera = Camera.main;
+        }
+        var newMainCamera = _cachedMainCamera;
+        if (newMainCamera != _previousMainCamera)
+        {
+            OnMainCameraChanged(_previousMainCamera, newMainCamera);
+            _previousMainCamera = newMainCamera;
+        }
     }
 
     /// <summary>
